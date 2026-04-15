@@ -2,13 +2,15 @@ import sqlite3
 import datetime
 import os
 
-# 数据库文件路径
-DB_PATH = 'sensor_data.db'
+# 数据库文件路径（指向根目录的统一数据库）
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'sensor_data.db')
 
-# 初始化数据库连接
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # 启用WAL模式，提高并发访问性能
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=5000')  # 5秒超时
     return conn
 
 # 创建数据库表
@@ -16,33 +18,35 @@ def create_tables():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 删除旧表（如果存在）
-    cursor.execute("DROP TABLE IF EXISTS device_power")
-    cursor.execute("DROP TABLE IF EXISTS sensor_data")
+    # 检查表是否存在
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sensor_data'")
+    table_exists = cursor.fetchone()
     
     # 创建合并的传感器数据表
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS sensor_data (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        temperature REAL,          -- 温度（浮点型）
-        humidity REAL,             -- 湿度（浮点型）
-        light REAL,                -- 光照（浮点型）
-        pir INTEGER,               -- PIR（整数型）
-        pir_status TEXT,           -- PIR状态（文本型）
-        pwm_f REAL,                -- 风扇占空比（浮点型）
-        pwm_l REAL,                -- 小灯占空比（浮点型）
-        power_f REAL,              -- 风扇功率（浮点型）
-        power_l REAL,              -- 小灯功率（浮点型）
-        level_f INTEGER,           -- 风扇挡位（整数型）
-        level_l INTEGER,           -- 小灯挡位（整数型）
-        timestamp TEXT,            -- 传感器时间戳
-        create_at TEXT             -- 数据库写入时间（北京时间）
-    )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    print("数据库表结构已更新为合并表结构")
+    if not table_exists:
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sensor_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            temperature REAL,          -- 温度（浮点型）
+            humidity REAL,             -- 湿度（浮点型）
+            light REAL,                -- 光照（浮点型）
+            pir INTEGER,               -- PIR（整数型）
+            pir_status TEXT,           -- PIR状态（文本型）
+            pwm_f REAL,                -- 风扇占空比（浮点型）
+            pwm_l REAL,                -- 小灯占空比（浮点型）
+            power_f REAL,              -- 风扇功率（浮点型）
+            power_l REAL,              -- 小灯功率（浮点型）
+            level_f INTEGER,           -- 风扇挡位（整数型）
+            level_l INTEGER,           -- 小灯挡位（整数型）
+            timestamp TEXT,            -- 传感器时间戳
+            create_at TEXT             -- 数据库写入时间（北京时间）
+        )
+         
+        ''')
+        conn.commit()
+        print("数据库表结构已创建")
+    else:
+        print("数据库表已存在，跳过创建")
 
 # 保存传感器数据和设备功率数据
 def save_sensor_data(data):

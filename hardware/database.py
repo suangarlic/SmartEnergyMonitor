@@ -20,9 +20,9 @@ def get_beijing_time_delta(days=0):
     return target_time.strftime('%Y-%m-%d %H:%M:%S')
 
 # ================================
-#  数据库路径：固定为当前目录下
+#  数据库路径：指向根目录的统一数据库
 # ================================
-DB_PATH = os.path.abspath("sensor_data.db")
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'sensor_data.db'))
 print(f"[INFO] 数据库文件位置: {DB_PATH}")
 
 # 创建数据库文件（若不存在）
@@ -40,6 +40,9 @@ except Exception as e:
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # 启用WAL模式，提高并发访问性能
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=5000')  # 5秒超时
     return conn
 
 # ================================

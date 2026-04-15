@@ -2,7 +2,11 @@ from flask import Flask, render_template, request, jsonify
 import threading
 import time
 import os
-from database import create_tables, save_sensor_data, clean_old_data
+from database import save_sensor_data, clean_old_data, get_db_connection, create_tables
+import requests
+import sys
+app = Flask(__name__)
+
 import requests
 import sys
 
@@ -38,14 +42,14 @@ def scheduled_cleanup():
         time.sleep(3600)
         clean_old_data()
 
-# 初始化数据库
+# 初始化数据库表结构
 create_tables()
-print("数据库表已创建/检查完成")
+print("数据库表结构初始化完成")
 
-# 后台清理线程
+# 后台清理线程（清理统一数据库中的过期数据）
 cleanup_thread = threading.Thread(target=scheduled_cleanup, daemon=True)
 cleanup_thread.start()
-print("定时清理任务已启动")
+print("定时清理任务已启动（清理统一数据库中的过期数据）")
 
 # 1. 前端主页
 @app.route('/')
@@ -273,6 +277,118 @@ def control_device():
             "success": False,
             "msg": f"设备控制失败: {str(e)}"
         }), 500
+    
+# 8. 新增：数据统计和计算接口
+@app.route('/api/data_statistics', methods=['GET'])
+def get_data_statistics():
+    """获取数据统计信息：平均值、最大值、最小值等"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 获取过去24小时的数据
+        from datetime import datetime, timedelta
+        threshold = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        cursor.execute("""
+            SELECT temperature, humidity, light, power_f, power_l
+            FROM sensor_data
+            WHERE create_at >= ?
+            AND temperature != '--' AND humidity != '--' AND light != '--'
+        """, (threshold,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return jsonify({
+                "success": True,
+                "data": {
+                    "temperature": {"avg": 0, "max": 0, "min": 0},
+                    "humidity": {"avg": 0, "max": 0, "min": 0},
+                    "light": {"avg": 0, "max": 0, "min": 0},
+                    "power_f": {"avg": 0, "max": 0, "min": 0},
+                    "power_l": {"avg": 0, "max": 0, "min": 0}
+                }
+            })
+        
+        # 计算统计数据
+        def calculate_stats(data_list):
+            valid_data = [float(x) for x in data_list if x is not None and x != '--']
+            if not valid_data:
+                return {"avg": 0, "max": 0, "min": 0}
+            return {
+                "avg": round(sum(valid_data) / len(valid_data), 2),
+                "max": round(max(valid_data), 2),
+                "min": round(min(valid_data), 2)
+            }
+        
+        # 分别计算各字段的统计值
+        temp_data = [row["temperature"] for row in rows]
+        humidity_data = [row["humidity"] for row in rows]
+        light_data = [row["light"] for row in rows]
+        power_f_data = [row["power_f"] for row in rows]
+        power_l_data = [row["power_l"] for row in rows]
+        
+        statistics = {
+            "temperature": calculate_stats(temp_data),
+            "humidity": calculate_stats(humidity_data),
+            "light": calculate_stats(light_data),
+            "power_f": calculate_stats(power_f_data),
+            "power_l": calculate_stats(power_l_data)
+        }
+        
+        return jsonify({
+            "success": True,
+            "data": statistics
+        })
+        
+    except Exception as e:
+        print(f"获取数据统计失败: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+ 
+ 
+# 9. 新增：历史数据查询接口
+@app.route('/api/history_data', methods=['GET'])
+def get_history_data():
+    """获取历史数据，支持时间范围查询"""
+    try:
+        # 获取查询参数
+        hours = request.args.get('hours', 24, type=int)  # 默认24小时
+        limit = request.args.get('limit', 100, type=int)  # 默认100条
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 计算时间阈值
+        from datetime import datetime, timedelta
+        threshold = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        cursor.execute("""
+            SELECT id, temperature, humidity, light, pir, pir_status, 
+                   pwm_f, pwm_l, power_f, power_l, level_f, level_l, 
+                   timestamp, create_at
+            FROM sensor_data
+            WHERE create_at >= ?
+            ORDER BY create_at ASC
+            LIMIT ?
+        """, (threshold, limit))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # 转换为字典列表
+        history = [dict(row) for row in rows]
+        
+        return jsonify({
+            "success": True,
+            "data": history,
+            "count": len(history)
+        })
+        
+    except Exception as e:
+        print(f"获取历史数据失败: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # 启动服务
 if __name__ == '__main__':
