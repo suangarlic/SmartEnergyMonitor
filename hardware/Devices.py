@@ -1,5 +1,6 @@
 # device_control.py - 执行器控制+数据传输（SIoT+HTTP）
-import siot
+import time
+import siot  
 import requests
 import json
 from datetime import datetime
@@ -16,26 +17,23 @@ class DeviceControl:
         """设置编辑器实例，用于获取挡位信息"""
         self.editor = editor
 
-    # ========== 新增：PWM核心功能（初学者友好版） ==========
+    # ========== 新增：PWM核心功能 ==========
     # 1. 计算占空比（PWM值转百分比）
     def _calc_duty_cycle(self, pwm_value):
         """将PWM原始值（0-1023）转换为占空比（0-100%），保留1位小数"""
         duty = round(pwm_value / 1023 * 100, 1)
         return duty
 
-    # 2. 模拟PWM值变化（测试用，模拟挡位切换）
+    # 2. 模拟PWM值变化
     def simulate_pwm_change(self):
-        """每2秒改变一次PWM值，模拟占空比变化（30%→60%→100%→30%循环）"""
         self.pwm_change_count += 1
         if self.pwm_change_count % 2 != 0:  # 每2秒触发一次
             return
         
         # 遍历所有PWM设备，更新值
         for device in self.hardware.pwm_devices:
-            # 每次增加205（≈1023*20%），超过1023则重置为307（30%）
+            # 每次增加205（≈1023*20%），超过1023则重置为0
             device["current_pwm_value"] = (device["current_pwm_value"] + 205) % 1024
-            if device["current_pwm_value"] < 307:  # 保底30%
-                device["current_pwm_value"] = 307
             # 更新占空比
             device["current_duty_cycle"] = self._calc_duty_cycle(device["current_pwm_value"])
             # 写入新的PWM值到引脚（实际控制设备）
@@ -84,17 +82,31 @@ class DeviceControl:
             print("无有效数据，跳过HTTP发送")
             return False
         # 补充时间戳,pwm
-        sensor_data["pwm_devices"] = self.get_pwm_data()
-        sensor_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # 优化JSON格式：横向键值对（最小token设计）
+        # 格式：{light:500,humi:60,temp:25,pir:1,fan_power:5.2,fan_level:2,light_power:3.7,light_level:1,time:"2024-01-01 10:30:45"}
+        pwm_data = self.get_pwm_data()
+        optimized_data = {
+            "light": sensor_data.get("light", 0),
+            "humi": sensor_data.get("humidity", 0),
+            "temp": sensor_data.get("temperature", 0),
+            "pir": sensor_data.get("pir", 0),
+            "fan_power": pwm_data[0]["power"],
+            "fan_level": pwm_data[0]["level"],
+            "light_power": pwm_data[1]["power"],
+            "light_level": pwm_data[1]["level"],
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
         try:
             # 发送POST请求到电脑后端
             response = requests.post(
                 url=self.hardware.HTTP_API,
-                json=sensor_data,  # 发送JSON格式数据
+                json=optimized_data,  # 发送优化后的JSON格式数据
                 timeout=5          # 超时5秒
             )
             if response.status_code == 200:
-                print(f"✅ HTTP数据发送成功：{sensor_data}")
+                # 紧凑格式显示（不换行）
+                compact_json = json.dumps(optimized_data, separators=(',', ':'))
+                print(f"✅ HTTP数据发送成功：{compact_json}")
                 return True
             else:
                 print(f"❌ HTTP发送失败，状态码：{response.status_code}")

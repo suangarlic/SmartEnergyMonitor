@@ -1,15 +1,10 @@
-# demo/ai_http.py
+
 from flask import Flask, jsonify, request
-import subprocess
-import sys
 import os
-import argparse
 import threading
 
 app = Flask(__name__)
 
-# Optional token to restrict who can call the endpoint. Set to None to disable.
-AI_TRIGGER_TOKEN = os.environ.get('AI_TRIGGER_TOKEN')
 
 # 全局编辑器实例
 global_editor = None
@@ -23,49 +18,6 @@ def set_editor(editor):
     global_editor = editor
 
 
-def run_ai_script(script_path=None, timeout=300):
-    """Run the AI script and return a dict with stdout/stderr/returncode."""
-    if script_path is None:
-        script_path = os.path.join(os.path.dirname(__file__), 'AI_advice_run.py')
-
-    if not os.path.exists(script_path):
-        return {"success": False, "msg": f"Script not found: {script_path}", "returncode": None}
-
-    try:
-        proc = subprocess.run([sys.executable, script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
-        return {
-            "success": proc.returncode == 0,
-            "stdout": proc.stdout,
-            "stderr": proc.stderr,
-            "returncode": proc.returncode
-        }
-    except subprocess.TimeoutExpired as e:
-        return {"success": False, "msg": "timeout", "stderr": str(e)}
-    except Exception as e:
-        return {"success": False, "msg": str(e)}
-
-
-@app.route('/run_ai', methods=['POST'])
-def run_ai_handler():
-    # simple token auth (if configured)
-    if AI_TRIGGER_TOKEN:
-        token = request.headers.get('X-AI-TOKEN') or request.args.get('token')
-        if token != AI_TRIGGER_TOKEN:
-            return jsonify({"success": False, "msg": "Unauthorized"}), 401
-
-    # optional custom script path in JSON body
-    body = {}
-    try:
-        body = request.get_json() or {}
-    except Exception:
-        body = {}
-
-    script = body.get('script')
-    timeout = int(body.get('timeout', 300))
-
-    result = run_ai_script(script, timeout=timeout)
-    status = 200 if result.get('success') else 500
-    return jsonify(result), status
 
 
 @app.route('/control_device', methods=['POST'])
@@ -170,10 +122,5 @@ def run_server(host='0.0.0.0', port=5005, debug=False, threaded=True):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='AI HTTP trigger server')
-    parser.add_argument('--host', default='0.0.0.0')
-    parser.add_argument('--port', type=int, default=5005)
-    parser.add_argument('--debug', action='store_true')
-    args = parser.parse_args()
-    print(f"Starting ai_http_server on {args.host}:{args.port}")
-    run_server(host=args.host, port=args.port, debug=args.debug)
+    print(f"Starting device control server on 0.0.0.0:5005")
+    run_server()

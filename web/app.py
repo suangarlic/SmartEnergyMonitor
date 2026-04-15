@@ -3,6 +3,7 @@ import threading
 import time
 import os
 from database import save_sensor_data, clean_old_data, get_db_connection, create_tables
+from AI_API import AIAnalyzer
 import requests
 import sys
 app = Flask(__name__)
@@ -14,9 +15,6 @@ app = Flask(__name__)
 
 # 重新加载配置
 sys.path.append(os.path.abspath('..'))
-
-BOARD_RUN_AI_URL = 'http://10.1.2.3:5005/run_ai'
-print(f"使用默认的BOARD_RUN_AI_URL: {BOARD_RUN_AI_URL}")
 
 # 直接设置正确的行空板IP地址
 BOARD_BASE_URL = 'http://10.1.2.3:5005'
@@ -64,12 +62,59 @@ def receive_data():
     data = request.get_json()
     if data:
         latest_data = data
-        print(f"✅ 收到行空板数据：{latest_data}")
-
-        if save_sensor_data(data):
-            print("数据已成功保存到数据库")
-        else:
-            print("⚠ 警告：数据保存到数据库失败")
+        # 紧凑格式显示（不换行）
+        import json
+        compact_json = json.dumps(data, separators=(',', ':'))
+        print(f"✅ 收到行空板数据：{compact_json}")
+ # 检查是否是横向键值对格式
+        if "light" in data and "humi" in data:  # 横向键值对格式
+            print(f"✅ 收到横向键值对格式数据：{compact_json}")
+            
+            # 转换为完整格式用于前端显示和数据库存储
+            pir_status = "有人" if data.get("pir", 0) == 1 else "无人"
+            
+            full_data = {
+                "temperature": data.get("temp", 0),
+                "humidity": data.get("humi", 0),
+                "light": data.get("light", 0),
+                "pir": data.get("pir", 0),
+                "pir_status": pir_status,
+                "timestamp": data.get("time", "--"),
+                "pwm_devices": [
+                    {
+                        "name": "风扇",
+                        "duty_cycle": "--",
+                        "power": data.get("fan_power", 0),
+                        "level": data.get("fan_level", 0)
+                    },
+                    {
+                        "name": "小灯",
+                        "duty_cycle": "--",
+                        "power": data.get("light_power", 0),
+                        "level": data.get("light_level", 0)
+                    }
+                ]
+            }
+            
+            # 保存完整格式用于前端显示
+            latest_data = full_data
+            
+            # 保存完整格式到数据库
+            if save_sensor_data(full_data):
+                print("数据已成功保存到数据库")
+            else:
+                print("⚠ 警告：数据保存到数据库失败")
+                
+        else:  # 原始格式（兼容性）
+            print(f"✅ 收到原始格式数据：{compact_json}")
+            
+            # 保存原始格式用于前端显示
+            latest_data = data
+            
+            if save_sensor_data(data):
+                print("数据已成功保存到数据库")
+            else:
+                print("⚠ 警告：数据保存到数据库失败")
 
         return jsonify({"status": "success", "msg": "数据已接收并保存"})
 
@@ -80,24 +125,8 @@ def receive_data():
 def get_data():
     return jsonify(latest_data)
 
-# 4. 新增：AI 建议上传接口（AI_advice_run.py 自动上传）
-@app.route('/upload_ai_advice', methods=['POST'])
-def upload_ai_advice():
-    """
-    接收设备端上传的 advice.txt（由 AI_advice_run.py 上传）
-    """
-    file = request.files.get("file")
 
-    if not file:
-        return jsonify({"success": False, "msg": "未收到文件"}), 400
-
-    # 保存到当前目录，供前端读取
-    file.save("advice.txt")
-
-    print("📌收到并保存新的 AI 节能建议：advice.txt")
-    return jsonify({"success": True, "msg": "AI 建议已更新"})
-
-# 5. 新增：获取AI节能建议内容的接口
+# 4. 新增：获取AI节能建议内容的接口
 @app.route('/api/get_ai_advice')
 def get_ai_advice():
     """
@@ -129,17 +158,65 @@ def get_ai_advice():
             "error": str(e)
         }), 500
 
-# 6. 新增：前端点击按钮执行 AI 分析
+# 5. 新增：前端点击按钮执行 AI 分析
 @app.route('/run_ai', methods=['POST'])
 def run_ai():
+    """本地执行AI分析，不再请求hardware端"""
     try:
-        BOARD_URL = BOARD_RUN_AI_URL
-        resp = requests.post(BOARD_URL, timeout=60)
-        return jsonify(resp.json()), resp.status_code
+        # 从数据库获取最近24小时的数据
+        from datetime import datetime, timedelta
+        threshold = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, temperature, humidity, light, pir, pir_status, 
+                   pwm_f, pwm_l, power_f, power_l, level_f, level_l, 
+                   timestamp, create_at
+            FROM sensor_data
+            WHERE create_at >= ?
+            ORDER BY create_at DESC
+            LIMIT 100
+        """, (threshold,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # 转换为字典列表
+        recent_records = [dict(row) for row in rows]
+        
+        if not recent_records:
+            return jsonify({
+                "success": False, 
+                "msg": "暂无数据可供分析"
+            }), 400
+        
+        print(f"正在分析 {len(recent_records)} 条最近数据...")
+        
+        # 调用本地AI分析器
+        analyzer = AIAnalyzer()
+        result = analyzer.send_to_ai(recent_records)
+        
+        # 保存AI建议到文件
+        with open("advice.txt", "w", encoding="utf-8") as f:
+            f.write(result)
+        
+        print("AI分析完成，建议已保存到advice.txt")
+        
+        return jsonify({
+            "success": True,
+            "msg": "AI分析完成",
+            "advice": result
+        })
+        
     except Exception as e:
-        return jsonify({"success": False, "msg": f"主控端请求行空板失败: {e}"}), 500
-
-# 7. 行空板控制接口
+        print(f"AI分析失败: {e}")
+        return jsonify({
+            "success": False, 
+            "msg": f"AI分析失败: {str(e)}"
+        }), 500
+# 6. 行空板控制接口
 @app.route('/start_board_main', methods=['POST'])
 def start_board_main():
     try:
@@ -156,7 +233,7 @@ def stop_board_main():
     except Exception as e:
         return jsonify({"success": False, "msg": f"请求行空板终止失败: {e}"}), 500
 
-# 8. 新增：通过网络更新行空板配置文件的接口
+# 7. 新增：通过网络更新行空板配置文件的接口
 @app.route('/update_board_config', methods=['POST'])
 def update_board_config():
     """通过网络API更新行空板上的配置文件"""
@@ -215,7 +292,7 @@ def update_board_config():
             "msg": f"通过网络API更新行空板配置失败: {str(e)}"
         }), 500
 
-# 9. 新增：设备控制接口
+# 8. 新增：设备控制接口
 @app.route('/control_device', methods=['POST'])
 def control_device():
     """控制行空板上的设备（灯和风扇）挡位"""
@@ -278,7 +355,7 @@ def control_device():
             "msg": f"设备控制失败: {str(e)}"
         }), 500
     
-# 8. 新增：数据统计和计算接口
+# 9. 新增：数据统计和计算接口
 @app.route('/api/data_statistics', methods=['GET'])
 def get_data_statistics():
     """获取数据统计信息：平均值、最大值、最小值等"""
@@ -348,7 +425,7 @@ def get_data_statistics():
         return jsonify({"success": False, "error": str(e)}), 500
  
  
-# 9. 新增：历史数据查询接口
+# 10. 新增：历史数据查询接口
 @app.route('/api/history_data', methods=['GET'])
 def get_history_data():
     """获取历史数据，支持时间范围查询"""

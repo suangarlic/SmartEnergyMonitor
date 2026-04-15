@@ -33,12 +33,12 @@ class UnihikerUI:
                                                color="lightgray", fill="lightgray")
         
         # 风扇进度条前景（初始40%）
-        fan_width = 80  # 40% of 200
+        fan_width = 0  # 0 of 200
         self.fan_progress = self.gui.draw_rect(x=20, y=85, w=fan_width, h=20, 
                                             color="#1E90FF", fill="#1E90FF")
         
         # 风扇挡位显示
-        self.fan_level_text = self.gui.draw_text(x=120, y=95, text="1档 (40%)", 
+        self.fan_level_text = self.gui.draw_text(x=120, y=95, text="0档 (0%)", 
                                                color="white", font_size=10, origin='center')
         
         # 小灯相关UI元素
@@ -49,13 +49,13 @@ class UnihikerUI:
         self.light_progress_bg = self.gui.draw_rect(x=20, y=155, w=200, h=20, 
                                                   color="lightgray", fill="lightgray")
         
-        # 小灯进度条前景（初始30%）
-        light_width = 60  # 30% of 200
+        # 小灯进度条前景
+        light_width = 0  # 0 of 200
         self.light_progress = self.gui.draw_rect(x=20, y=155, w=light_width, h=20, 
                                                color="#FFA500", fill="#FFA500")
         
         # 小灯挡位显示
-        self.light_level_text = self.gui.draw_text(x=120, y=165, text="1档 (30%)", 
+        self.light_level_text = self.gui.draw_text(x=120, y=165, text="0档 (0%)", 
                                                   color="white", font_size=10, origin='center')
         
         # 操作提示

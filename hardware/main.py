@@ -95,12 +95,7 @@ if __name__ == "__main__":
             device.send_data_http(sensor_data)
             print("[HTTP] 数据已发送到web端")
 
-            # ======================================
-            # 生成简化的data.json（用于本地UI显示）
-            # ======================================
-            history = generate_history_data()
-            with open("data.json", "w", encoding="utf-8") as f:
-                json.dump(history, f, ensure_ascii=False, indent=2)
+            
             
             # 更新上次数据采集时间
             last_collection_time = current_time

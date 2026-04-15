@@ -14,8 +14,8 @@ class Editor:
         self.light_levels = [0, 307, 614, 1023]  # PWM值对应0%, 30%, 60%, 100%
         
         # 默认挡位设置为1（40%和30%）
-        self.current_fan_level = 1  # 默认1档（40%）
-        self.current_light_level = 1  # 默认1档（30%）
+        self.current_fan_level = 0 # 默认1档（40%）
+        self.current_light_level = 0  # 默认1档（30%）
         
         # 防抖变量
         self.last_button_time = 0
@@ -108,3 +108,4 @@ class Editor:
             "light_level": self.current_light_level,
             "light_duty": light_duty
         }
+    

@@ -55,8 +55,8 @@ class HardwareInit:
             {
                 "name": "风扇",       # 设备名称（前端显示）
                 "pin": Pin(Pin.P9, Pin.PWM),  # 风扇PWM引脚（可修改）
-                "current_pwm_value": 307,      # 初始PWM值（0-1023，307=30%）
-                "current_duty_cycle": 30.0,     # 初始占空比（%）
+                "current_pwm_value": 0,      # 初始PWM值（0-1023，307=30%）
+                "current_duty_cycle": 0.0,     # 初始占空比（%）
                 "power_map": [
                     (0, 0, 0),       # 0%占空比→0W（关）
                     (1, 30, 5),      # 1%-30%→低挡5W
@@ -68,8 +68,8 @@ class HardwareInit:
             {
                 "name": "小灯",
                 "pin": Pin(Pin.P16, Pin.PWM),  # 小灯PWM引脚（可修改）
-                "current_pwm_value": 512,      # 初始PWM值（512=50%）
-                "current_duty_cycle": 50.0,     # 初始占空比（%）
+                "current_pwm_value": 0,      # 初始PWM值（512=50%）
+                "current_duty_cycle": 0.0,     # 初始占空比（%）
                 "power_map": [
                     (0, 0, 0),       # 0%→0W（关）
                     (1, 30, 1),      # 1%-30%→低挡1W
@@ -82,16 +82,20 @@ class HardwareInit:
         # 初始化PWM输出（设置初始值）
         for device in self.pwm_devices:
             device["pin"].write_analog(device["current_pwm_value"])
-
-        for device in self.pwm_devices:
-            device["pin"].write_analog(device["current_pwm_value"])
-            # 计算初始功率
             self._calc_device_power(device)
 
     # 新增：计算单个设备的功率（根据占空比匹配功率映射）
     def _calc_device_power(self, device):
         duty = device["current_duty_cycle"]
+        # 确保挡位为0时功率为0
+        if duty == 0:
+            device["current_power"] = 0
+            return
+            
         for (min_duty, max_duty, power) in device["power_map"]:
             if min_duty <= duty <= max_duty:
                 device["current_power"] = power
                 break
+        else:
+            # 如果没有匹配到，默认功率为0
+            device["current_power"] = 0
