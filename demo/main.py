@@ -113,7 +113,7 @@ if __name__ == "__main__":
     t.start()
 
     # 数据采集间隔设置（单位：秒）
-    COLLECTION_INTERVAL = 5 * 60  # 5分钟 = 300秒
+    COLLECTION_INTERVAL = 5 
     # 记录上次数据采集的时间
     last_collection_time = time.time()
     
