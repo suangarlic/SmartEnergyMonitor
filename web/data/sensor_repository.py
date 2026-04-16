@@ -22,18 +22,18 @@ def create_tables():
     try:
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS sensor_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            t REAL,
-            h REAL,
-            l REAL,
-            p INTEGER,
-            ps TEXT,
-            pf REAL,
-            pl REAL,
-            lf INTEGER,
-            ll INTEGER,
-            tm TEXT,
-            ca TEXT
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Temperature REAL,
+            Humidity REAL,
+            Light REAL,
+            PirStatus INTEGER,
+            PirText TEXT,
+            FanPower REAL,
+            LightPower REAL,
+            FanLevel INTEGER,
+            LightLevel INTEGER,
+            Timestamp TEXT,
+            CollectionTime TEXT
         )
         ''')
         conn.commit()
@@ -49,17 +49,17 @@ def save_sensor_data(data):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        t = float(data.get('temperature', 0)) if data.get('temperature', '--') != '--' else 0.0
-        h = float(data.get('humidity', 0)) if data.get('humidity', '--') != '--' else 0.0
-        l = float(data.get('light', 0)) if data.get('light', '--') != '--' else 0.0
-        p = int(data.get('pir', 0))
-        ps = data.get('pir_status', '--')
+        Temperature = float(data.get('temperature', 0)) if data.get('temperature', '--') != '--' else 0.0
+        Humidity = float(data.get('humidity', 0)) if data.get('humidity', '--') != '--' else 0.0
+        Light = float(data.get('light', 0)) if data.get('light', '--') != '--' else 0.0
+        PirStatus = int(data.get('pir', 0))
+        PirText = data.get('pir_status', '--')
         
         pwm_devices = data.get('pwm_devices', [])
-        pf = 0.0
-        pl = 0.0
-        lf = 0
-        ll = 0
+        fanPower = 0.0
+        lightPower = 0.0
+        fanLevel = 0
+        lightLevel = 0
         
         for device in pwm_devices:
             device_name = device.get('name', '').lower()
@@ -67,18 +67,18 @@ def save_sensor_data(data):
             level = int(device.get('level', 0))
             
             if 'fan' in device_name or '风扇' in device_name:
-                pf = power
-                lf = level
+                fanPower = power
+                fanLevel = level
             elif 'light' in device_name or '灯' in device_name:
-                pl = power
-                ll = level
+                lightPower = power
+                lightLevel = level
         
-        tm = data.get('timestamp', '--')
-        ca = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        Timestamp = data.get('timestamp', '--')
+        collectionTime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.execute(
-            "INSERT INTO sensor_data (t, h, l, p, ps, pf, pl, lf, ll, tm, ca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (t, h, l, p, ps, pf, pl, lf, ll, tm, ca)
+            "INSERT INTO sensor_data (Temperature, Humidity, Light, PirStatus, PirText, FanPower, LightPower, FanLevel, LightLevel, Timestamp, CollectionTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (Temperature, Humidity, Light, PirStatus, PirText, fanPower, lightPower, fanLevel, lightLevel, Timestamp, collectionTime)
         )
         conn.commit()
         return True
@@ -96,27 +96,29 @@ def get_ai_data(limit=400):
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT t, h, l, p, pf, pl, lf, ll, tm, ca
+            SELECT Temperature, Humidity, Light, PirStatus, FanPower, LightPower, FanLevel, LightLevel, Timestamp, CollectionTime
             FROM sensor_data
-            ORDER BY ca DESC
+            ORDER BY CollectionTime DESC
             LIMIT ?
         """, (limit,))
         rows = cursor.fetchall()
+        
+        print(f"[get_ai_data] 查询到 {len(rows)} 条记录")
         
         # 转换为精简格式，减少token使用
         ai_data = []
         for row in rows:
             record = {
-                "t": row["t"],
-                "h": row["h"],
-                "l": row["l"],
-                "p": row["p"],
-                "pf": row["pf"],
-                "pl": row["pl"],
-                "lf": row["lf"],
-                "ll": row["ll"],
-                "tm": row["tm"],
-                "ca": row["ca"]
+                "t": row["Temperature"],
+                "h": row["Humidity"],
+                "l": row["Light"],
+                "p": row["PirStatus"],
+                "pf": row["FanPower"],
+                "pl": row["LightPower"],
+                "lf": row["FanLevel"],
+                "ll": row["LightLevel"],
+                "tm": row["Timestamp"],
+                "ca": row["CollectionTime"]
             }
             ai_data.append(record)
         
@@ -131,10 +133,10 @@ def get_history_data(hours=24, limit=100):
     try:
         threshold = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
-            SELECT t, h, l, p, ps, pf, pl, lf, ll, tm, ca
+            SELECT Temperature, Humidity, Light, PirStatus, PirText, FanPower, LightPower, FanLevel, LightLevel, Timestamp, CollectionTime
             FROM sensor_data
-            WHERE ca >= ?
-            ORDER BY ca ASC
+            WHERE CollectionTime >= ?
+            ORDER BY CollectionTime ASC
             LIMIT ?
         """, (threshold, limit))
         rows = cursor.fetchall()
@@ -146,13 +148,13 @@ def get_history_data(hours=24, limit=100):
                 "h": row["h"],
                 "l": row["l"],
                 "p": row["p"],
-                "ps": row["ps"],
-                "pf": row["pf"],
-                "pl": row["pl"],
+                "ps": row["PirText"],
+                "pf": row["FanPower"],
+                "pl": row["LightPower"],
                 "lf": row["lf"],
                 "ll": row["ll"],
-                "tm": row["tm"],
-                "ca": row["ca"]
+                "tm": row["Timestamp"],
+                "ca": row["CollectionTime"]
             }
             history.append(record)
         
@@ -167,14 +169,20 @@ def get_statistics_data(hours=24):
     try:
         threshold = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
-            SELECT t, h, l, pf, pl
+            SELECT Temperature, Humidity, Light, PirStatus, PirText, FanPower, LightPower, FanLevel, LightLevel, Timestamp, CollectionTime
             FROM sensor_data
-            WHERE ca >= ?
-            AND t != 0 AND h != 0 AND l != 0
+            WHERE CollectionTime >= ?
+            AND Temperature != 0 AND Humidity != 0 AND Light != 0
         """, (threshold,))
         rows = cursor.fetchall()
         
-        return [dict(row) for row in rows]
+        return [{
+            "t": row["Temperature"],
+            "h": row["Humidity"],
+            "l": row["Light"],
+            "pf": row["FanPower"],
+            "pl": row["LightPower"]
+        } for row in rows]
     finally:
         conn.close()
  
@@ -185,7 +193,7 @@ def clean_old_data():
     try:
         one_month_ago = datetime.now() - timedelta(days=30)
         one_month_ago_str = one_month_ago.strftime('%Y-%m-%d %H:%M:%S')
-        cursor.execute("DELETE FROM sensor_data WHERE ca < ?", (one_month_ago_str,))
+        cursor.execute("DELETE FROM sensor_data WHERE CollectionTime < ?", (one_month_ago_str,))
         deleted_count = cursor.rowcount
         conn.commit()
         print(f"清理了 {deleted_count} 条过期数据")
