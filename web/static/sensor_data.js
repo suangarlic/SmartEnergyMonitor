@@ -50,7 +50,19 @@ function updateSensorDisplay(data) {
 
   // 更新人体红外状态
   if (data.pir_status) {
-    document.getElementById('pir_status').textContent = data.pir_status;
+    const pirStatusElement = document.getElementById('pir_status');
+    const pirIconElement = pirStatusElement?.parentElement?.querySelector('i');
+    
+    pirStatusElement.textContent = data.pir_status;
+    
+    // 根据状态设置颜色：有人显示绿色，无人显示灰色
+    if (data.pir_status === '有人') {
+      pirStatusElement.style.color = '#4ade80'; // 绿色
+      pirIconElement?.setAttribute('style', 'color: #4ade80');
+    } else {
+      pirStatusElement.style.color = '#6b7280'; // 灰色
+      pirIconElement?.setAttribute('style', 'color: #6b7280');
+    }
   }
 
   // 更新设备列表和功率数据
@@ -58,10 +70,18 @@ function updateSensorDisplay(data) {
     data.pwm_devices.forEach(device => {
       if (device.name.includes('小灯')) {
         document.getElementById('device-light-power').textContent = `${device.power}W`;
-        document.getElementById('current-device-name').textContent = device.name;
+        
         document.getElementById('current-duty').textContent = `${device.duty_cycle}%`;
+        const level = Number(device.level);
+        if (!Number.isNaN(level)) {
+          window.deviceControl?.syncDeviceLevel?.('light', level);
+        }
       } else if (device.name.includes('风扇')) {
         document.getElementById('device-fan-power').textContent = `${device.power}W`;
+        const level = Number(device.level);
+        if (!Number.isNaN(level)) {
+          window.deviceControl?.syncDeviceLevel?.('fan', level);
+        }
       }
     });
 
@@ -71,4 +91,23 @@ function updateSensorDisplay(data) {
     // 更新PWM占空比图表（新增）
     updatePwmData(data.pwm_devices);
   }
+
+  // 根据后端返回的设备状态同步显示
+  syncDeviceLevelsFromBackend(data);
+}
+
+// 如果设备状态是由后端传来，则同步显示级别
+function syncDeviceLevelsFromBackend(data) {
+  if (!data.pwm_devices || !Array.isArray(data.pwm_devices)) {
+    return;
+  }
+  data.pwm_devices.forEach(device => {
+    if (device.name.includes('小灯') || device.name.includes('风扇')) {
+      const level = Number(device.level);
+      if (!Number.isNaN(level) && window.deviceControl?.syncDeviceLevel) {
+        const deviceKey = device.name.includes('小灯') ? 'light' : 'fan';
+        window.deviceControl.syncDeviceLevel(deviceKey, level);
+      }
+    }
+  });
 }

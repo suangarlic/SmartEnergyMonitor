@@ -28,7 +28,11 @@ class SensorCollect:
 
     # 读取人体红外
     def read_pir(self):
-        return self.hardware.ir_pin.read_digital()
+        for _ in range(3):
+            if self.hardware.ir_pin.read_digital() != 1:
+                return 0  # 只要有一次不是1，就返回无人
+            time.sleep(0.05)
+        return 1  # 连续3次检测到有人，才返回有人
 
     # 封装所有传感器数据为字典（便于传输）
     def get_all_data(self):

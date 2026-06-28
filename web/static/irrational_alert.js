@@ -1,8 +1,8 @@
-// 无人状态检测和弹窗提醒功能
-class NoPersonAlert {
+// 异常状态检测和弹窗提醒功能
+class IrrationalAlert {
     constructor() {
-        this.noPersonStartTime = null;
-        this.alertThreshold = 10 * 1000; // 10秒无人状态阈值（毫秒）
+        this.irrationalStartTime = null;
+        this.alertThreshold = 10 * 1000; // 10秒异常状态阈值（毫秒）
         this.alertShown = false;
         this.userAcknowledged = false; // 新增：用户是否已确认警告
         this.checkInterval = null;
@@ -45,7 +45,7 @@ class NoPersonAlert {
                     if (mutation.type === 'characterData' || mutation.type === 'childList') {
                         // 传感器数据更新时立即检查状态
                         setTimeout(() => {
-                            this.checkNoPersonStatus();
+                            this.checkIrrationalStatus();
                         }, 100);
                     }
                 });
@@ -62,33 +62,43 @@ class NoPersonAlert {
     }
 
     startMonitoring() {
-        // 每5秒检查一次无人状态
+        // 每5秒检查一次异常状态
         this.checkInterval = setInterval(() => {
-            this.checkNoPersonStatus();
+            this.checkIrrationalStatus();
         }, 5000);
 
         // 监听传感器数据更新
         this.listenForSensorUpdates();
 
-        console.log('无人状态检测已启动，检测间隔: 5秒');
+        console.log('异常状态检测已启动，检测间隔: 5秒');
+    }
+
+    isDisplayRunning(displayText) {
+        if (!displayText) {
+            return false;
+        }
+        return !displayText.includes('关') && !displayText.includes('0%');
     }
 
     checkDeviceRunning(){
-        // 检查小灯状态
+        // 先使用设备控制模块的状态作为权威来源
+        const lightRunning = window.deviceControl?.isDeviceRunning?.('light') ?? false;
+        const fanRunning = window.deviceControl?.isDeviceRunning?.('fan') ?? false;
+
+        // 如果控制模块不可用，则回退到显示文本判断
         const lightDisplay = document.getElementById('light-level-display')?.textContent || '';
-        const lightRunning = !lightDisplay.includes('关') && !lightDisplay.includes('0%');
-        
-        // 检查风扇状态
         const fanDisplay = document.getElementById('fan-level-display')?.textContent || '';
-        const fanRunning = !fanDisplay.includes('关') && !fanDisplay.includes('0%');
-        
-        const anyDeviceRunning = lightRunning || fanRunning;
-        console.log(`设备状态检查 - 小灯: ${lightRunning ? '运行中' : '已关闭'}, 风扇: ${fanRunning ? '运行中' : '已关闭'}, 总体: ${anyDeviceRunning ? '有设备运行' : '所有设备已关闭'}`);
-        
-        return anyDeviceRunning; 
+
+        const effectiveLightRunning = lightRunning || this.isDisplayRunning(lightDisplay);
+        const effectiveFanRunning = fanRunning || this.isDisplayRunning(fanDisplay);
+        const anyDeviceRunning = effectiveLightRunning || effectiveFanRunning;
+
+        console.log(`设备状态检查 - 小灯显示: "${lightDisplay}", 小灯运行中: ${effectiveLightRunning}, 风扇显示: "${fanDisplay}", 风扇运行中: ${effectiveFanRunning}, 总体: ${anyDeviceRunning ? '有设备运行' : '所有设备已关闭'}`);
+
+        return anyDeviceRunning;
     }
 
-    checkNoPersonStatus() {
+    checkIrrationalStatus() {
         // 获取当前人体检测状态
         const pirStatus = document.getElementById('pir_status')?.textContent || '';
 
@@ -98,13 +108,13 @@ class NoPersonAlert {
                          pirStatus === '1';
 
         if (!hasPerson) {
-            // 无人状态
-            if (!this.noPersonStartTime) {
-                this.noPersonStartTime = Date.now();
-                console.log('开始检测无人状态...');
+            // 异常状态
+            if (!this.irrationalStartTime) {
+                this.irrationalStartTime = Date.now();
+                console.log('开始检测异常状态...');
             }
 
-            const duration = Date.now() - this.noPersonStartTime;
+            const duration = Date.now() - this.irrationalStartTime;
             const durationSeconds = Math.floor(duration / 1000);
 
              // 只有在有设备运行的情况下才显示提醒
@@ -115,15 +125,15 @@ class NoPersonAlert {
                 this.alertShown = true;
             } else if (!deviceRunning && this.alertShown) {
                 // 如果所有设备都已关闭，隐藏弹窗
-                console.log('所有设备已关闭，隐藏无人状态提醒');
+                console.log('所有设备已关闭，隐藏异常状态提醒');
                 this.hideModal();
                 this.alertShown = false;
             }
         } else {
             // 有人状态，重置所有状态
-            if (this.noPersonStartTime) {
-                console.log('检测到有人，重置无人状态计时器');
-                this.noPersonStartTime = null;
+            if (this.irrationalStartTime) {
+                console.log('检测到有人，重置异常状态计时器');
+                this.irrationalStartTime = null;
                 this.alertShown = false;
                 this.userAcknowledged = false; // 检测到人，重置确认状态
             }
@@ -131,8 +141,8 @@ class NoPersonAlert {
     }
 
     showModal(durationSeconds) {
-        const modal = document.getElementById('no-person-modal');
-        const durationSpan = document.getElementById('no-person-duration');
+        const modal = document.getElementById('irrational-modal');
+        const durationSpan = document.getElementById('irrational-duration');
 
         if (modal && durationSpan) {
             durationSpan.textContent = durationSeconds;
@@ -145,12 +155,12 @@ class NoPersonAlert {
                 modal.style.transition = 'all 0.3s ease';
             }, 10);
 
-            console.log(`显示无人状态提醒，持续时间: ${durationSeconds}秒`);
+            console.log(`显示异常状态提醒，持续时间: ${durationSeconds}秒`);
         }
     }
 
     hideModal() {
-        const modal = document.getElementById('no-person-modal');
+        const modal = document.getElementById('irrational-modal');
         if (modal) {
             modal.style.opacity = '0';
             modal.style.transform = 'scale(0.9)';
@@ -164,8 +174,8 @@ class NoPersonAlert {
 
     resetAlert() {
         // 不再重置alertShown，只重置计时器
-        this.noPersonStartTime = null;
-        console.log('重置无人状态检测');
+        this.irrationalStartTime = null;
+        console.log('重置异常状态检测');
     }
 
     autoCloseDevices() {
@@ -182,24 +192,27 @@ class NoPersonAlert {
     }
 
     controlDevice(device, level, pwmValue) {
-        // 调用设备控制API
-        fetch('/control_device', {
+        // 使用命令中心模式，向服务器发送命令
+        let fanLevel = device === 'fan' ? level : window.deviceControl.getDeviceStatus().fan;
+        let lightLevel = device === 'light' ? level : window.deviceControl.getDeviceStatus().light;
+        
+        // 调用命令中心API
+        fetch('/set_command', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                device: device,
-                level: level,
-                pwm_value: pwmValue
+                fan_level: fanLevel,
+                light_level: lightLevel
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                console.log(`${device}设备已关闭`);
+                console.log(`${device}设备已设置到${level}挡`);
             } else {
-                console.error(`关闭${device}设备失败:`, data.msg);
+                console.error(`设置${device}设备失败:`, data.msg);
             }
         })
         .catch(error => {
@@ -265,18 +278,18 @@ class NoPersonAlert {
     }
 }
 
-// 页面加载完成后初始化无人状态检测
+// 页面加载完成后初始化异常状态检测
 document.addEventListener('DOMContentLoaded', function() {
     // 等待其他脚本加载完成
     setTimeout(() => {
-        window.noPersonAlert = new NoPersonAlert();
-        console.log('无人状态检测功能已启动');
-        console.log('检测间隔:', window.noPersonAlert.checkInterval);
-        console.log('弹窗阈值:', window.noPersonAlert.alertThreshold);
+        window.irrationalAlert = new IrrationalAlert();
+        console.log('异常状态检测功能已启动');
+        console.log('检测间隔:', window.irrationalAlert.checkInterval);
+        console.log('弹窗阈值:', window.irrationalAlert.alertThreshold);
     }, 2000);
 });
 
 // 导出类供其他模块使用
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = NoPersonAlert;
+    module.exports = IrrationalAlert;
 }

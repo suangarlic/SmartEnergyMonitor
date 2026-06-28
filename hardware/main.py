@@ -11,19 +11,8 @@ import os
 from datetime import datetime, timedelta
 
 import threading
-import ai_http
+from command_polling import CommandWebSocket  # 改为 WebSocket
 
-
-# ===============================
-# 生成历史数据（用于本地显示）
-# ===============================
-def generate_history_data():
-    # 简化的历史数据生成，实际数据由web端管理
-    history = []
-    # 这里可以保留一些本地缓存数据用于UI显示
-    # 但主要数据由web端负责存储和管理
-    return history
-        
 
 # 程序入口
 if __name__ == "__main__":
@@ -44,10 +33,10 @@ if __name__ == "__main__":
     print("操作说明: A键-调节小灯档位, B键-调节风扇档位")
     print("-" * 40)
 
-    # 启动AI HTTP服务器并传递editor实例
-    ai_http.set_editor(editor)
-    t = threading.Thread(target=ai_http.run_server, kwargs={'host': '0.0.0.0', 'port': 5005}, daemon=True)
-    t.start()
+    # 启动 WebSocket 命令接收器（替代轮询）
+    command_ws = CommandWebSocket(editor=editor)
+    command_ws.start()
+    print("[命令中心] WebSocket 命令接收器已启动")
 
     # 数据采集间隔设置（单位：秒）
     COLLECTION_INTERVAL = 5 
@@ -95,7 +84,7 @@ if __name__ == "__main__":
             device.send_data_http(sensor_data)
             print("[HTTP] 数据已发送到web端")
 
-            
+          
             
             # 更新上次数据采集时间
             last_collection_time = current_time

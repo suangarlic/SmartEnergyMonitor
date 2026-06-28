@@ -2,7 +2,11 @@ from pinpong.board import Board, Pin
 from pinpong.libs.dfrobot_dht20 import DHT20
 import siot
 from pinpong.extension.unihiker import light
+import requests
+import socket
 from config import PC_IP, PC_PORT, HTTP_API  # 导入配置
+
+
 
 class HardwareInit:
     def __init__(self):
@@ -14,6 +18,10 @@ class HardwareInit:
         self.PC_IP = PC_IP
         self.PC_PORT = PC_PORT
         self.HTTP_API = HTTP_API
+        
+        print(f"配置 - IP: {self.PC_IP}, 端口: {self.PC_PORT}")
+        print(f"API地址: {self.HTTP_API}")
+        
         # 自定义变量（自动逻辑用）
         self.pir_timer = 0
 
@@ -25,7 +33,7 @@ class HardwareInit:
         self.light_sensor = light
         
         # 初始化人体红外传感器（假设连接在P10引脚）
-        self.ir_pin = Pin(Pin.P10, Pin.IN)  # P10为数字输入引脚
+        self.ir_pin = Pin(Pin.P8, Pin.IN)  # P10为数字输入引脚
 
            # ========== SIoT 配置 ==========
         # SIoT 服务器地址（默认使用本地服务器）

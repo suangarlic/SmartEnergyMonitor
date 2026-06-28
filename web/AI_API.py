@@ -1,23 +1,25 @@
-# AI_API.py - 负责将 data.json 发送至 DeepSeek，并返回分析结果
+# AI_API.py - 负责将数据发送至 DeepSeek，并返回分析结果
 import json
 import requests
 import os
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+load_dotenv(env_path)
+
 
 class AIAnalyzer:
     def __init__(self):
-        # DeepSeek API地址
-        self.api_url = "https://api.deepseek.com/v1/chat/completions"
+        # 从环境变量读取配置
+        self.api_url = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
+        self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
-        # API KEY（必须配置：export DEEPSEEK_API_KEY=xxxx）
-        self.api_key = os.getenv("DEEPSEEK_API_KEY", "sk-2296ee817f5c4135a59d2ecb13cf42c7")
+        # 验证配置
+        if not self.api_key:
+            raise ValueError("DEEPSEEK_API_KEY 环境变量未设置，请在 .env 文件中配置")
 
-    def load_data(self, path="data.json"):
-        """读取最近一小时的传感器数据"""
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return []
 
     def send_to_ai(self, recent_records):
         """将记录发送到 DeepSeek 进行能耗分析"""
@@ -49,7 +51,7 @@ class AIAnalyzer:
 7. 【重要】分析时间时要注意时间顺序，同时要加上年月日，确保开始时间早于结束时间。
 
 【禁止使用固定阈值】
-不准使用“光照>500lux”“温度>25℃”这类固定判断，必须从历史数据中总结用户习惯。
+不准使用"光照>500lux""温度>25℃"这类固定判断，必须从历史数据中总结用户习惯。
  
 【数据格式说明】
 数据采用精简的横向键值对格式（不换行）：{{"l":500,"h":60,"t":25,"p":1,"pf":5.2,"lf":2,"pl":3.7,"ll":1,"tm":"12:00","ca":"2023-10-01 10:30:00"}}
@@ -70,21 +72,45 @@ class AIAnalyzer:
 【提供的数据】
 {json.dumps(recent_records, separators=(',', ':'))}
 """
+
+        return self._call_api(prompt)
+
+    def explain_behavior(self, llm_input: dict) -> str:
+        """
+        将行为分析结果发送给大模型，生成简洁的控制解释。
+
+        Args:
+            llm_input: build_llm_input() 输出的标准化 dict
+
+        Returns:
+            ≤40 字自然语言解释
+        """
+        prompt = f"""角色：智能宿舍节能管家
+任务：根据下方分析结果，生成一句设备状态/调整提醒
+要求：
+1. 严格40字以内，口语化，温和像管家提醒
+2. 必须以「环境和用户使用习惯」为依据，不能凭空建议，突出对用户历史行为分析
+3. 所有调整突出「兼顾舒适体验与节能降耗」，不只谈节能
+4. 正常场景点明符合习惯，偏差场景说明动作与价值
+
+【分析数据】
+{json.dumps(llm_input, ensure_ascii=False, indent=2)}
+"""
+        return self._call_api(prompt)
+
+    def _call_api(self, prompt: str) -> str:
+        """通用 API 调用"""
         payload = {
-            "model": "deepseek-chat",
+            "model": self.model,
             "messages": [
                 {"role": "user", "content": prompt}
             ]
         }
-
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-
         response = requests.post(self.api_url, headers=headers, json=payload)
-
         if response.status_code == 200:
             return response.json()["choices"][0]["message"]["content"]
-
         return f"[AI ERROR] {response.text}"

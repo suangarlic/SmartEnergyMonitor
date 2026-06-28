@@ -25,6 +25,7 @@
             dark: '#121212',
             'dark-light': '#1e1e1e',
             'dark-lighter': '#2d2d2d'
+          
           },
           fontFamily: {
             sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -41,8 +42,10 @@
     <div class="container mx-auto">
       <h1 class="text-[clamp(1.8rem,3vw,2.5rem)] font-bold text-primary text-glow flex items-center">
         <i class="fa fa-bolt mr-3 text-secondary"></i>
-        节能减排监测系统
+        低碳智屏
         <span class="ml-4 text-sm bg-primary/20 px-3 py-1 rounded-full border border-primary/40">实时监控中</span>
+         
+        </span>
       </h1>
     </div>
   </header>
@@ -58,16 +61,70 @@
         </h2>
         <span class="text-xs bg-dark-lighter px-2 py-1 rounded-full">更新于: <span id="update-time">15:30:22</span></span>
       </div>
-      
 
-      
+      <!-- ========== 新增：AI状态展示卡片 ========== -->
+      <div id="ai-status-card" class="bg-dark-light rounded-xl p-5 border border-primary/20 transition-all duration-300">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-white flex items-center">
+            <i class="fa fa-microchip mr-2 text-primary"></i>AI自主控制状态
+          </h3>
+          <!-- 【优化】强化"执行型 Agent"表达 -->
+          <div class="flex items-center">
+            <div id="ai-status-indicator" class="w-3 h-3 rounded-full bg-green-500 mr-2 animate-pulse"></div>
+            <span id="ai-status-text" class="text-xs text-primary font-semibold">AI分析中...</span>
+          </div>
+        </div>
+
+        <!-- AI 状态信息 -->
+        <div class="space-y-3">
+          <!-- 自动控制开关 -->
+          <div class="bg-dark-lighter rounded-lg p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-400">• 自动控制</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="auto-control-toggle" class="sr-only peer" onchange="window.handleAutoControlToggle(this.checked)">
+                <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 【优化】原因说明 -->
+          <div class="bg-dark-lighter rounded-lg p-3">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-gray-400">• 原因</span>
+            </div>
+            <p id="ai-reason" class="text-sm text-gray-300">系统正在分析环境数据...</p>
+          </div>
+
+          <!-- 【优化】AI 动作 -->
+          <div class="bg-dark-lighter rounded-lg p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-400">• AI动作</span>
+              <span id="ai-action" class="text-sm text-secondary font-semibold">无动作</span>
+            </div>
+          </div>
+
+          <!-- 【优化】执行状态 -->
+          <div class="bg-dark-lighter rounded-lg p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-400">• 执行状态</span>
+              <span id="ai-execute-status" class="text-sm">
+                <span class="inline-flex items-center">
+                  <i id="execute-icon" class="fa fa-circle-o mr-1 text-gray-400"></i>
+                  <span id="execute-text" class="text-gray-400">等待执行</span>
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <!-- 【优化】删除节能统计 - 重点放在执行型 Agent 而非能耗大屏 -->
+      </div>
 
       
 
       <!-- 左侧：AI节能建议 -->
       <div class="bg-dark-light rounded-xl p-5 border border-primary/20">
         <div class="flex items-center justify-between mb-4">
-          
           <h3 class="text-lg font-semibold text-white flex items-center">
             <i class="fa fa-lightbulb-o mr-2 text-primary"></i>AI节能建议
           </h3>
@@ -75,14 +132,13 @@
             <div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center mr-2">
               <i class="fa fa-robot text-primary text-xs"></i>
             </div>
-              <span class="text-xs text-gray-400">最后更新时间：<span id="ai_timestamp">--</span></span>
-              <!-- 运行 AI 分析 按钮 -->
-              <button id="run-ai-btn" class="ml-3 text-xs bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/40">上传数据</button>
+            <span class="text-xs text-gray-400">最后更新时间：<span id="ai_timestamp">--</span></span>
+            <!-- 运行 AI 分析 按钮 -->
+            <button id="run-ai-btn" class="ml-3 text-xs bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/40">上传数据</button>
           </div>
         </div>
 
         <div class="space-y-3 max-h-52 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-primary/30" id="ai-advice-container">
-          <!-- 这里的内容将由JavaScript动态生成 -->
           <div id="run-ai-result" class="mb-2 text-xs text-gray-300"></div>
           <div class="bg-dark-lighter rounded-lg p-4 border border-primary/20">
             <div class="flex justify-between items-start mb-2">
@@ -93,22 +149,21 @@
           </div>
         </div>
       </div>
-<script>
-function runAI() {
-    fetch("/run_ai", { method: "POST" })
-        .then(res => res.json())
-        .then(data => {
-            alert(data.msg);
-            // 触发刷新 AI 节能建议
-            loadAIAdvice();
-        })
-        .catch(err => {
-            alert("请求失败，请检查网络或服务器！");
-        });
-}
-</script>
+      <script>
+        function runAI() {
+            fetch("/run_ai", { method: "POST" })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.msg);
+                    loadAIAdvice();
+                })
+                .catch(err => {
+                    alert("请求失败，请检查网络或服务器！");
+                });
+        }
+      </script>
 
-            <!-- 设备列表 -->
+      <!-- 设备列表 -->
       <div class="bg-dark-light rounded-xl p-5 border border-primary/20">
         <h3 class="text-white text-lg mb-4 flex items-center justify-between">
           <span><i class="fa fa-plug mr-2 text-primary"></i>已接入设备</span>
@@ -137,7 +192,8 @@ function runAI() {
           <div class="bg-dark-lighter rounded-lg p-3 slide-in" style="animation-delay: 0.15s">
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm font-medium">小灯挡位控制</span>
-            <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full" id="light-level-display">关 (0%)</span>            </div>
+              <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full" id="light-level-display">关 (0%)</span>
+            </div>
             <div class="flex space-x-2">
               <button class="device-level-btn active" data-device="light" data-level="0" title="关闭">关</button>
               <button class="device-level-btn" data-device="light" data-level="1" title="1档 (30%)">1档</button>
@@ -243,75 +299,69 @@ function runAI() {
             <i class="fa fa-line-chart mr-2 text-primary"></i>功耗趋势分析
           </h3>
           <div class="flex space-x-2">
-            <!-- <button id="btn-range-day" class="text-xs bg-primary/30 text-white px-3 py-1 rounded-full border border-primary/50">今日 (24h)</button> -->
             <button id="btn-range-realtime" class="text-xs bg-dark-lighter text-gray-400 px-3 py-1 rounded-full">实时</button>
           </div>
-  
           <div class="ml-3 flex space-x-2" id="power-device-tabs"></div>
-          </div>
-          <div class="h-64">
-            <canvas id="power-trend-chart"></canvas>
-          </div>
-          <div class="flex justify-between mt-3 text-xs text-gray-400">
-           
-          </div>
         </div>
-        
-        
-      </div>
-      <!-- 无人状态弹窗 -->
-        <div id="no-person-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 hidden">
-          <div class="bg-dark-light rounded-xl p-6 max-w-md w-full mx-4 border-2 border-accent/50 shadow-lg">
-            <div class="flex items-center mb-4">
-              <div class="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center mr-3">
-                <i class="fa fa-exclamation-triangle text-accent text-xl"></i>
-              </div>
-              <div>
-                <h3 class="text-xl font-bold text-white">无人状态提醒</h3>
-                <p class="text-sm text-gray-400">系统检测到长时间无人状态</p>
-              </div>
-            </div>
-          
-            <div class="bg-dark-lighter rounded-lg p-4 mb-4">
-              <p class="text-gray-200 mb-2">
-                <i class="fa fa-clock-o mr-2 text-accent"></i>
-                已检测到 <span id="no-person-duration" class="font-bold text-accent">0</span> 分钟无人状态
-              </p>
-              <p class="text-sm text-gray-400">
-                建议检查设备是否需要关闭以节省能源
-              </p>
-            </div>
-          
-            <div class="flex space-x-3">
-              <button id="close-modal-btn" class="flex-1 bg-accent/20 text-accent px-4 py-2 rounded-lg border border-accent/40 hover:bg-accent/30 transition-colors">
-              我知道了
-              </button>
-              <button id="auto-close-devices-btn" class="flex-1 bg-primary/20 text-primary px-4 py-2 rounded-lg border border-primary/40 hover:bg-primary/30 transition-colors">
-              自动关闭设备
-              </button>
-            </div>
-          </div>
+        <div class="h-64">
+          <canvas id="power-trend-chart"></canvas>
+        </div>
+        <div class="flex justify-between mt-3 text-xs text-gray-400">
+        </div>
       </div>
       
-      <!-- 新增：PWM占空比监测板块 -->
+      <!-- 异常状态弹窗 -->
+      <div id="irrational-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 hidden">
+        <div class="bg-dark-light rounded-xl p-6 max-w-md w-full mx-4 border-2 border-accent/50 shadow-lg">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center mr-3">
+              <i class="fa fa-exclamation-triangle text-accent text-xl"></i>
+            </div>
+            <div>
+              <h3 class="text-xl font-bold text-white">异常状态提醒</h3>
+              <p class="text-sm text-gray-400">系统检测到长时间异常状态</p>
+            </div>
+          </div>
+        
+          <div class="bg-dark-lighter rounded-lg p-4 mb-4">
+            <p class="text-gray-200 mb-2">
+              <i class="fa fa-clock-o mr-2 text-accent"></i>
+              已检测到 <span id="irrational-duration" class="font-bold text-accent">0</span> 分钟异常状态
+            </p>
+            <p class="text-sm text-gray-400">
+              建议检查设备是否需要关闭以节省能源
+            </p>
+          </div>
+        
+          <div class="flex space-x-3">
+            <button id="close-modal-btn" class="flex-1 bg-accent/20 text-accent px-4 py-2 rounded-lg border border-accent/40 hover:bg-accent/30 transition-colors">
+              我知道了
+            </button>
+            <button id="auto-close-devices-btn" class="flex-1 bg-primary/20 text-primary px-4 py-2 rounded-lg border border-primary/40 hover:bg-primary/30 transition-colors">
+              自动关闭设备
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- PWM占空比监测板块 -->
       <div class="bg-dark-light rounded-xl p-5 border border-primary/20">
         <div class="flex items-center justify-between mb-4">
           <h3 class="font-medium text-white flex items-center">
             <i class="fa fa-sliders mr-2 text-primary"></i>设备占空比监测
           </h3>
-          <!-- 动态生成设备选项卡 -->
           <div class="flex space-x-2" id="pwm-device-tabs">
-            <!-- JS会自动生成设备切换按钮 -->
           </div>
         </div>
         <div class="h-64">
           <canvas id="pwm-duty-chart"></canvas>
         </div>
         <div class="flex justify-between mt-3 text-xs">
-          <div class="text-gray-400">当前设备：<span id="current-device-name" class="text-primary">--</span></div>
           <div class="text-primary">当前占空比：<span id="current-duty" class="font-bold">0%</span></div>
         </div>
       </div>
+
+     
 
     </section>
   </main>
@@ -319,19 +369,20 @@ function runAI() {
   <!-- 页脚 -->
   <footer class="mt-8 py-4 px-6 border-t border-primary/30 text-center text-sm text-gray-500">
     <div class="container mx-auto">
-      <p>智能插座低碳监测系统 &copy; 2025 | 开源硬件比赛项目</p>
+      <p>低碳智屏 &copy; 2026 | 中国大学生计算机设计大赛</p>
     </div>
   </footer>
 
   <!-- 自定义脚本 -->
-  <!-- 自定义脚本 -->
-<script src="{{ url_for('static', filename='utils.js') }}"></script>
-<script src="{{ url_for('static', filename='power_chart.js') }}"></script>
-<script src="{{ url_for('static', filename='pwm_chart.js') }}"></script>
-<script src="{{ url_for('static', filename='sensor_data.js') }}"></script>
-<script src="{{ url_for('static', filename='AI_advice.js') }}"></script>
-<script src="{{ url_for('static', filename='device_control.js') }}"></script>
-<script src="{{ url_for('static', filename='main.js') }}"></script>
-<script src="{{ url_for('static', filename='no_person_alert.js') }}"></script>
+  <script src="{{ url_for('static', filename='utils.js') }}"></script>
+  <script src="{{ url_for('static', filename='power_chart.js') }}"></script>
+  <script src="{{ url_for('static', filename='pwm_chart.js') }}"></script>
+  <script src="{{ url_for('static', filename='sensor_data.js') }}"></script>
+  <script src="{{ url_for('static', filename='AI_advice.js') }}"></script>
+  <script src="{{ url_for('static', filename='device_control.js') }}"></script>
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
+  <script src="{{ url_for('static', filename='irrational_alert.js') }}"></script>
+  <!-- 新增：AI状态管理脚本 -->
+  <script src="{{ url_for('static', filename='ai_status.js') }}"></script>
 </body>
 </html>

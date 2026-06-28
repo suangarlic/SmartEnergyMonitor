@@ -39,6 +39,7 @@ function initDeviceControls() {
 
 // 设置设备挡位
 function setDeviceLevel(device, level) {
+    console.log(`[设备控制] 尝试设置 ${device} 为 ${level}档`);
     if (deviceLevels[device] && deviceLevels[device].levels.includes(level)) {
         // 更新按钮状态
         document.querySelectorAll(`.device-level-btn[data-device="${device}"]`).forEach(btn => {
@@ -54,6 +55,8 @@ function setDeviceLevel(device, level) {
         
         // 发送控制命令到行空板
         sendDeviceControlCommand(device, level);
+    } else {
+        console.error(`[设备控制] 无效的设备或挡位: device=${device}, level=${level}`);
     }
 }
 
@@ -67,20 +70,27 @@ function updateDeviceDisplay(device, level) {
     }
 }
 
-// 发送设备控制命令到行空板
+// 发送设备控制命令到行空板（旧路由 - 直接控制）
+// 已废弃，使用命令中心模式替代
 function sendDeviceControlCommand(device, level) {
-    const pwmValue = deviceLevels[device].pwmValues[level];
+    // 使用命令中心模式，将命令发送到服务器
+    const currentFanLevel = device === 'fan' ? level : deviceStatus.fan;
+    const currentLightLevel = device === 'light' ? level : deviceStatus.light;
     
-    // 构建控制命令（基于demo/Editor.py中的逻辑）
+    sendCommandToCmdCenter(currentFanLevel, currentLightLevel);
+}
+
+// ========== 命令中心模式：新路由 ==========
+// 发送命令到命令中心（行空板主动轮询）
+function sendCommandToCmdCenter(fanLevel, lightLevel) {
     const command = {
-        device: device,
-        level: level,
-        pwm_value: pwmValue,
-        timestamp: new Date().toISOString()
+        fan_level: fanLevel,
+        light_level: lightLevel
     };
     
-    // 发送到行空板的API
-    fetch('/control_device', {
+    console.log(`[命令中心] 发送命令: ${JSON.stringify(command)}`);
+    
+    fetch('/set_command', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -90,16 +100,41 @@ function sendDeviceControlCommand(device, level) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            console.log(`${device} 挡位设置为 ${level} (PWM: ${pwmValue})`);
-            showNotification(`${device === 'light' ? '小灯' : '风扇'} 已设置为 ${deviceLevels[device].labels[level]}`, 'success');
+            console.log(`[命令中心] 命令已保存: fan_level=${fanLevel}, light_level=${lightLevel}`);
+            showNotification(`命令已保存，等待行空板执行`, 'success');
         } else {
-            throw new Error(data.msg || '控制失败');
+            throw new Error(data.msg || '命令保存失败');
         }
     })
     .catch(error => {
-        console.error('设备控制失败:', error);
-        showNotification('设备控制失败，请检查网络连接', 'error');
+        console.error('[命令中心] 发送命令失败:', error);
+        showNotification('命令保存失败，请检查网络连接', 'error');
     });
+}
+
+// 获取当前设备状态
+function getDeviceStatus(device) {
+    return deviceStatus[device] ?? 0;
+}
+
+// 判断设备是否运行
+function isDeviceRunning(device) {
+    return getDeviceStatus(device) > 0;
+}
+
+// 同步设备状态到页面，不发送控制命令
+function syncDeviceLevel(device, level) {
+    if (deviceLevels[device] && deviceLevels[device].levels.includes(level)) {
+        document.querySelectorAll(`.device-level-btn[data-device="${device}"]`).forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const btn = document.querySelector(`.device-level-btn[data-device="${device}"][data-level="${level}"]`);
+        if (btn) {
+            btn.classList.add('active');
+        }
+        deviceStatus[device] = level;
+        updateDeviceDisplay(device, level);
+    }
 }
 
 // 显示通知
@@ -134,5 +169,9 @@ window.deviceControl = {
     setDeviceLevel,
     updateDeviceDisplay,
     sendDeviceControlCommand,
-    showNotification
+    sendCommandToCmdCenter,
+    showNotification,
+    getDeviceStatus,
+    isDeviceRunning,
+    syncDeviceLevel
 };

@@ -76,6 +76,13 @@
       box-shadow: 0 0 20px theme('colors.accent');
     }
   }
+  
+  
+  
+  
+  /* ========== 【优化】删除复杂动画 ========== */
+  /* 保留：pulse-slow、rotate-slow（简单科技风）*/
+  /* 删除：fan-shutdown、light-off、number-change、execute-success、flash-* */
 }
 
 /* 通知样式 */
@@ -159,3 +166,13 @@
 .notification.show {
     transform: translateX(0);
 }
+
+
+
+
+
+/* ========== AI状态卡片样式 ========== */
+#ai-status-card {
+    transition: all 0.3s ease;
+}
+

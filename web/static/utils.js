@@ -7,6 +7,12 @@ function updateTime() {
   document.getElementById('update-time').textContent = `${hours}:${minutes}:${seconds}`;
 }
 
+// 页面加载时立即更新时间
+updateTime();
+
+// 每秒更新一次时间，实现实时显示
+setInterval(updateTime, 1000);
+
 // 数据下采样和填充
 function downsamplePad(arr, targetLen) {
   if (!Array.isArray(arr)) return Array(targetLen).fill(null);

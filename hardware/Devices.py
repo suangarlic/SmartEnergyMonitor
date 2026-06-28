@@ -92,10 +92,12 @@ class DeviceControl:
             "pir": sensor_data.get("pir", 0),
             "fan_power": pwm_data[0]["power"],
             "fan_level": pwm_data[0]["level"],
+            "fan_duty_cycle": pwm_data[0]["duty_cycle"],
             "light_power": pwm_data[1]["power"],
             "light_level": pwm_data[1]["level"],
+            "light_duty_cycle": pwm_data[1]["duty_cycle"],
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
+}
         try:
             # 发送POST请求到电脑后端
             response = requests.post(

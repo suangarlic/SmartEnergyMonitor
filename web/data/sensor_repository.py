@@ -144,15 +144,15 @@ def get_history_data(hours=24, limit=100):
         history = []
         for row in rows:
             record = {
-                "t": row["t"],
-                "h": row["h"],
-                "l": row["l"],
-                "p": row["p"],
+                "t": row["Temperature"],
+                "h": row["Humidity"],
+                "l": row["Light"],
+                "p": row["PirStatus"],
                 "ps": row["PirText"],
                 "pf": row["FanPower"],
                 "pl": row["LightPower"],
-                "lf": row["lf"],
-                "ll": row["ll"],
+                "lf": row["FanLevel"],
+                "ll": row["LightLevel"],
                 "tm": row["Timestamp"],
                 "ca": row["CollectionTime"]
             }
@@ -186,6 +186,23 @@ def get_statistics_data(hours=24):
     finally:
         conn.close()
  
+def get_latest_records(n: int = 6):
+    """获取最近 N 条传感器数据，用于行为分析窗口"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT Temperature, Humidity, Light, PirStatus, FanLevel, LightLevel, Timestamp
+            FROM sensor_data
+            ORDER BY CollectionTime DESC
+            LIMIT ?
+        """, (n,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in reversed(rows)]  # 时间升序
+    finally:
+        conn.close()
+
+
 def clean_old_data():
     """清理过期数据（保留最近1个月）"""
     conn = get_db_connection()
