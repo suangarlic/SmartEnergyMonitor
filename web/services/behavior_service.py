@@ -91,16 +91,18 @@ class BehaviorAnalysisService:
             print(f"  → {compare_result.reason}")
 
         # 调用大模型生成解释，保存到 reason.txt
+        # 优化：只有在场景触发时才调用 API，减少调用频率
         reason = ""
-        try:
-            from AI_API import AIAnalyzer
-            reason = AIAnalyzer().explain_behavior(llm_input)
-            with open("reason.txt", "w", encoding="utf-8") as f:
-                f.write(reason)
-            print(f"  [LLM] {reason}")
-        except Exception as e:
-            reason = "AI分析中..."
-            print(f"  [LLM] 调用失败: {e}")
+        if compare_result.trigger:
+            try:
+                from AI_API import AIAnalyzer
+                reason = AIAnalyzer().explain_behavior(llm_input)
+                with open("reason.txt", "w", encoding="utf-8") as f:
+                    f.write(reason)
+                print(f"  [LLM] {reason}")
+            except Exception as e:
+                reason = "AI分析中..."
+                print(f"  [LLM] 调用失败: {e}")
 
         # 自动控制：仅对 energy_saving / comfort_adjust 场景下发设备指令
         self._apply_control(llm_input, reason)

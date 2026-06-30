@@ -34,22 +34,43 @@ function initPowerChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+        touch: {
+          enabled: true,
+          mode: 'nearest',
+          axis: 'x'
+        }
+      },
       scales: {
         x: {
           grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: 'rgba(255,255,255,0.6)' },
+          ticks: { 
+            color: 'rgba(255,255,255,0.6)',
+            maxRotation: 45,
+            minRotation: 45,
+            font: {
+              size: Math.max(8, Math.min(12, window.innerWidth / 40))
+            }
+          },
           title: {
-            display: true,
+            display: window.innerWidth > 640,
             text: '日期',
             color: 'rgba(255,255,255,0.8)'
           }
         },
         y: {
           grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: 'rgba(255,255,255,0.6)' },
+          ticks: { 
+            color: 'rgba(255,255,255,0.6)',
+            font: {
+              size: Math.max(8, Math.min(12, window.innerWidth / 40))
+            }
+          },
           beginAtZero: true,
           title: {
-            display: true,
+            display: window.innerWidth > 640,
             text: '能耗 (Wh)',
             color: 'rgba(255,255,255,0.8)'
           }
@@ -57,24 +78,36 @@ function initPowerChart() {
       },
       plugins: {
         legend: {
-          display: true,
+          display: window.innerWidth > 640,
           labels: {
             color: '#e0e0e0',
             usePointStyle: true,
-            padding: 20
+            padding: 15,
+            font: {
+              size: Math.max(10, Math.min(12, window.innerWidth / 50))
+            }
           }
         },
         tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          backgroundColor: 'rgba(0, 0, 0, 0.9)',
           titleColor: '#fff',
           bodyColor: '#fff',
-          padding: 12,
+          padding: window.innerWidth > 640 ? 12 : 8,
+          titleFont: {
+            size: Math.max(10, Math.min(14, window.innerWidth / 40))
+          },
+          bodyFont: {
+            size: Math.max(10, Math.min(12, window.innerWidth / 50))
+          },
           callbacks: {
             label: function(ctx) {
               return ctx.dataset.label + ': ' + ctx.parsed.y + ' Wh';
             }
           }
         }
+      },
+      animation: {
+        duration: window.innerWidth > 640 ? 300 : 150
       }
     }
   });
