@@ -35,8 +35,11 @@ class BehaviorAnalysisService:
         self._initialized = True
 
         self._comparator = BehaviorComparator(
-            debounce_count=2,
+            debounce_count=3,  # 增加防抖次数，减少误触发
         )
+        # 记录上次执行的命令，用于判断档位是否变化
+        self._last_fan_level = -1
+        self._last_light_level = -1
         self._latest_result: dict | None = None
         self._running = False
         self._thread: threading.Thread | None = None
@@ -90,19 +93,31 @@ class BehaviorAnalysisService:
         if compare_result.trigger:
             print(f"  → {compare_result.reason}")
 
+        # 检查档位是否发生变化
+        target_fan = llm_input.get("baseline_status", {}).get("fan", 0)
+        target_light = llm_input.get("baseline_status", {}).get("light", 0)
+        has_level_change = (target_fan != self._last_fan_level) or (target_light != self._last_light_level)
+
         # 调用大模型生成解释，保存到 reason.txt
-        # 优化：只有在场景触发时才调用 API，减少调用频率
+        # 优化：只有在场景触发且档位发生变化时才调用 API，大幅减少调用频率
         reason = ""
-        if compare_result.trigger:
+        if compare_result.trigger and has_level_change and _get_control_switch():
             try:
                 from AI_API import AIAnalyzer
                 reason = AIAnalyzer().explain_behavior(llm_input)
                 with open("reason.txt", "w", encoding="utf-8") as f:
                     f.write(reason)
                 print(f"  [LLM] {reason}")
+                # 更新记录的档位
+                self._last_fan_level = target_fan
+                self._last_light_level = target_light
             except Exception as e:
                 reason = "AI分析中..."
                 print(f"  [LLM] 调用失败: {e}")
+        elif compare_result.trigger and not has_level_change:
+            print(f"  [LLM] 跳过调用：档位未变化 (fan={target_fan}, light={target_light})")
+        elif not _get_control_switch():
+            print(f"  [LLM] 跳过调用：自动控制开关已关闭")
 
         # 自动控制：仅对 energy_saving / comfort_adjust 场景下发设备指令
         self._apply_control(llm_input, reason)

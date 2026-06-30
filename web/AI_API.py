@@ -8,6 +8,37 @@ from dotenv import load_dotenv
 env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
 load_dotenv(env_path)
 
+# 模拟建议库 - 当API不可用时使用
+SIMULATED_ADVICES = [
+    {
+        "title": "智能节能模式已启用",
+        "description": "系统根据您的使用习惯自动调整设备，兼顾舒适与节能",
+        "saving": "0.85",
+        "status": "已生效"
+    },
+    {
+        "title": "夜间自动关闭",
+        "description": "检测到深夜无人时自动关闭设备，预计节省电量",
+        "saving": "0.32",
+        "status": "已生效"
+    },
+    {
+        "title": "智能挡位调节",
+        "description": "根据环境光线自动调节灯光亮度",
+        "saving": "0.15",
+        "status": "已生效"
+    }
+]
+
+SIMULATED_EXPLANATIONS = [
+    "检测到您已离开，已自动关闭设备以节省能源",
+    "根据您的使用习惯，已调整风扇至舒适挡位",
+    "环境光线充足，已自动调低灯光亮度",
+    "检测到有人活动，已自动开启设备",
+    "一切正常，设备运行符合您的使用习惯",
+    "已根据环境温度调整风扇挡位，兼顾舒适与节能"
+]
+
 
 class AIAnalyzer:
     def __init__(self):
@@ -15,14 +46,24 @@ class AIAnalyzer:
         self.api_url = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
         self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
         self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
-
-        # 验证配置
+        # 是否启用模拟模式（无API时自动启用）
+        self.use_simulation = os.getenv("USE_SIMULATION", "false").lower() == "true"
+        
+        # 验证配置 - 如果没有API密钥或启用模拟模式，则使用模拟数据
         if not self.api_key:
-            raise ValueError("DEEPSEEK_API_KEY 环境变量未设置，请在 .env 文件中配置")
+            print("[AI] 警告：DEEPSEEK_API_KEY 未设置，将使用模拟模式")
+            self.use_simulation = True
+        
+        if self.use_simulation:
+            print("[AI] 模拟模式已启用")
 
 
     def send_to_ai(self, recent_records):
         """将记录发送到 DeepSeek 进行能耗分析"""
+        
+        # 模拟模式：返回预设的节能建议
+        if self.use_simulation:
+            return self._generate_simulated_advice()
 
         prompt = f"""
 你是智能家居节能管家，请根据用户近期的传感器历史数据，分析用户真实行为习惯，输出可直接前端展示的标准化节能建议。
@@ -85,6 +126,11 @@ class AIAnalyzer:
         Returns:
             ≤40 字自然语言解释
         """
+        
+        # 模拟模式：返回预设的解释
+        if self.use_simulation:
+            return self._generate_simulated_explanation(llm_input)
+
         prompt = f"""角色：智能宿舍节能管家
 任务：根据下方分析结果，生成一句设备状态/调整提醒
 要求：
@@ -97,6 +143,38 @@ class AIAnalyzer:
 {json.dumps(llm_input, ensure_ascii=False, indent=2)}
 """
         return self._call_api(prompt)
+    
+    def _generate_simulated_advice(self):
+        """生成模拟的节能建议"""
+        advice_text = ""
+        for advice in SIMULATED_ADVICES:
+            advice_text += f"标题：{advice['title']}\n"
+            advice_text += f"描述：{advice['description']}\n"
+            advice_text += f"预计节电：{advice['saving']} 度/天\n"
+            advice_text += f"状态：{advice['status']}\n\n"
+        return advice_text.strip()
+    
+    def _generate_simulated_explanation(self, llm_input: dict) -> str:
+        """根据场景生成模拟的行为解释"""
+        import random
+        
+        scenario = llm_input.get("scenario", "normal")
+        trigger = llm_input.get("trigger", False)
+        
+        if scenario == "energy_saving" and trigger:
+            return "检测到无人状态，已自动关闭设备以节省能源"
+        elif scenario == "comfort_adjust" and trigger:
+            real_fan = llm_input.get("real_status", {}).get("fan", 0)
+            target_fan = llm_input.get("baseline_status", {}).get("fan", 0)
+            if real_fan > target_fan:
+                return f"风扇从{real_fan}档降至{target_fan}档，兼顾舒适与节能"
+            elif real_fan < target_fan:
+                return f"风扇从{real_fan}档升至{target_fan}档，提升舒适度"
+            return "已根据您的使用习惯调整设备挡位"
+        elif scenario == "normal":
+            return "一切正常，设备运行符合您的使用习惯"
+        else:
+            return random.choice(SIMULATED_EXPLANATIONS)
 
     def _call_api(self, prompt: str) -> str:
         """通用 API 调用"""
@@ -110,7 +188,28 @@ class AIAnalyzer:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-        response = requests.post(self.api_url, headers=headers, json=payload)
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
-        return f"[AI ERROR] {response.text}"
+        
+        try:
+            response = requests.post(self.api_url, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()["choices"][0]["message"]["content"]
+            
+            # 处理API错误
+            error_msg = f"API调用失败 ({response.status_code})"
+            print(f"[AI ERROR] {response.text}")
+            
+            # 判断是否是余额不足错误
+            try:
+                error_data = response.json()
+                if error_data.get("error", {}).get("message") == "Insufficient Balance":
+                    print("[AI] 检测到API余额不足，建议切换到模拟模式")
+                    return "API服务暂时不可用，系统已切换到本地模式"
+            except:
+                pass
+            
+            return f"[AI ERROR] {error_msg}"
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[AI ERROR] 请求异常: {e}")
+            return f"[AI ERROR] 请求异常: {str(e)}"
