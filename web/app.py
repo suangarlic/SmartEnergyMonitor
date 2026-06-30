@@ -220,6 +220,12 @@ def get_command():
         print(f"[ERROR] /get_command: {str(e)}")
         return jsonify({"success": False, "msg": f"命令获取失败: {str(e)}"}), 500
 
+@app.route('/api/energy_stats', methods=['GET'])
+def get_energy_stats():
+    """获取最近5天分类能耗统计（用于前端功耗柱状图）"""
+    from data.sensor_repository import get_daily_energy_stats
+    return jsonify(get_daily_energy_stats())
+
 @app.route('/api/data_statistics', methods=['GET'])
 def get_data_statistics():
     from controllers.sensor_controller import SensorController

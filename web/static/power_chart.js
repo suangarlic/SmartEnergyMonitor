@@ -1,130 +1,136 @@
-// 实时功率趋势图
+// 双设备每日能耗柱状图
 let powerChart = null;
-const powerLabels = [];
-const powerHistoryData = {};
-const POWER_MAX_POINTS = 60;
-const powerPalette = ['#00a8ff', '#00ffaa', '#ff7d00', '#ffd166', '#b39ddb', '#90caf9'];
-let powerViewMode = 'realtime';
-let lastPowerUpdateTime = Date.now();
-const DATA_TIMEOUT = 2000;
-
-function refreshPowerChartView() {
-  if (!powerChart) return;
-  if (powerViewMode === 'realtime') {
-    powerChart.data.labels = powerLabels.slice();
-    powerChart.data.datasets.forEach(ds => {
-      ds.data = (powerHistoryData[ds.label] || []).slice();
-      ds.hidden = ds.hidden === true;
-    });
-  }
-  powerChart.update();
-}
-
-function setPowerViewMode(mode) {
-  powerViewMode = mode;
-  const bDay = document.getElementById('btn-range-day');
-  const bRealtime = document.getElementById('btn-range-realtime');
-  if (bDay && bRealtime) {
-    bDay.className = mode === 'day' ? 'text-xs bg-primary/30 text-white px-3 py-1 rounded-full border border-primary/50' : 'text-xs bg-dark-lighter text-gray-400 px-3 py-1 rounded-full';
-    bRealtime.className = mode === 'realtime' ? 'text-xs bg-primary/30 text-white px-3 py-1 rounded-full border border-primary/50' : 'text-xs bg-dark-lighter text-gray-400 px-3 py-1 rounded-full';
-  }
-  refreshPowerChartView();
-}
-
-function initPowerTrendChart() {
-  const ctx = document.getElementById('power-trend-chart').getContext('2d');
-  powerChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels: powerLabels, datasets: [] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.6)' } },
-               y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.6)' }, beginAtZero: true } },
-      plugins: { legend: { display: true, labels: { color: '#e0e0e0' } }, tooltip: { mode: 'nearest', intersect: false } },
-      interaction: { intersect: false, mode: 'index' },
-      animation: { duration: 200 }
-    }
-  });
-}
-
-function ensurePowerDataset(deviceName, colorIndex) {
-  if (!powerChart) return;
-  const ds = powerChart.data.datasets.find(d => d.label === deviceName);
-  if (ds) return ds;
-  const color = powerPalette[colorIndex % powerPalette.length];
-  const newDs = {
-    label: deviceName, data: powerHistoryData[deviceName] || [],
-    borderColor: color, backgroundColor: color + '33',
-    fill: true, tension: 0.35, pointRadius: 2, cubicInterpolationMode: 'monotone'
-  };
-  powerChart.data.datasets.push(newDs);
-  return newDs;
-}
-
-function updatePowerData(devices) {
-  lastPowerUpdateTime = Date.now();
-  if (!Array.isArray(devices)) return;
-  const nowLabel = new Date().toTimeString().slice(0,8);
-  powerLabels.push(nowLabel);
-  while (powerLabels.length > POWER_MAX_POINTS) powerLabels.shift();
-
-  const targetDevices = devices.filter(d => {
-    const name = (d.name || '').toLowerCase();
-    return name.includes('小灯') || name.includes('灯') || name.includes('风扇') || name.includes('fan') || name.includes('light');
-  });
-
-  targetDevices.forEach((d, idx) => {
-    const name = d.name || `设备${idx+1}`;
-    const value = (d.power !== undefined ? d.power : (d.value !== undefined ? d.value : 0));
-    if (!powerHistoryData[name]) {
-      powerHistoryData[name] = Array(powerLabels.length - 1).fill(null);
-    }
-    powerHistoryData[name].push(Number.isFinite(+value) ? +value : null);
-    while (powerHistoryData[name].length > POWER_MAX_POINTS) powerHistoryData[name].shift();
-  });
-
-  const totalPower = '功率和';
-  if (!powerHistoryData[totalPower]) {
-    powerHistoryData[totalPower] = Array(powerLabels.length - 1).fill(null);
-  }
-  let currentSum = 0;
-  targetDevices.forEach(d => {
-    const name = d.name || `设备${d.id || 0}`;
-    const value = (d.power !== undefined ? d.power : (d.value !== undefined ? d.value : 0));
-    if (Number.isFinite(+value)) currentSum += +value;
-  });
-  powerHistoryData[totalPower].push(currentSum);
-  while (powerHistoryData[totalPower].length > POWER_MAX_POINTS) powerHistoryData[totalPower].shift();
-
-  ensurePowerDataset(totalPower, 0);
-  refreshPowerChartView();
-}
-
-function zeroPowerChart() {
-  const nowLabel = new Date().toTimeString().slice(0,8);
-  powerLabels.push(nowLabel);
-  while (powerLabels.length > POWER_MAX_POINTS) powerLabels.shift();
-  const totalPower = '功率和';
-  Object.keys(powerHistoryData).forEach(name => {
-    powerHistoryData[name].push(0);
-    while (powerHistoryData[name].length > POWER_MAX_POINTS) powerHistoryData[name].shift();
-  });
-  if (!powerHistoryData[totalPower]) {
-    powerHistoryData[totalPower] = Array(powerLabels.length).fill(0);
-  }
-  ensurePowerDataset(totalPower, 0);
-  refreshPowerChartView();
-  document.getElementById('device-light-power').textContent = '0W';
-  document.getElementById('device-fan-power').textContent = '0W';
-}
 
 function initPowerModule() {
-  initPowerTrendChart();
-  (function bindPowerRangeButtons(){
-    const bDay = document.getElementById('btn-range-day');
-    const bRealtime = document.getElementById('btn-range-realtime');
-    if (bDay) bDay.addEventListener('click', () => setPowerViewMode('day'));
-    if (bRealtime) bRealtime.addEventListener('click', () => setPowerViewMode('realtime'));
-    setPowerViewMode('realtime');
-  })();
+  initPowerChart();
+  fetchEnergyStats();
 }
+
+function initPowerChart() {
+  const ctx = document.getElementById('power-trend-chart').getContext('2d');
+  powerChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: '风扇',
+          data: [],
+          backgroundColor: '#00a8ff',
+          borderColor: '#0090dd',
+          borderWidth: 1,
+          borderRadius: 4
+        },
+        {
+          label: '小灯',
+          data: [],
+          backgroundColor: '#ff7d00',
+          borderColor: '#dd6000',
+          borderWidth: 1,
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: 'rgba(255,255,255,0.6)' },
+          title: {
+            display: true,
+            text: '日期',
+            color: 'rgba(255,255,255,0.8)'
+          }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: 'rgba(255,255,255,0.6)' },
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: '能耗 (Wh)',
+            color: 'rgba(255,255,255,0.8)'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#e0e0e0',
+            usePointStyle: true,
+            padding: 20
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          padding: 12,
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ': ' + ctx.parsed.y + ' Wh';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function fetchEnergyStats() {
+  fetch('/api/energy_stats')
+    .then(response => response.json())
+    .then(data => {
+      renderEnergyChart(data);
+    })
+    .catch(error => {
+      console.error('获取能耗统计数据失败:', error);
+      showEnergyWarning('加载能耗数据失败');
+    });
+}
+
+function renderEnergyChart(data) {
+  if (!powerChart) return;
+
+  const { dates, fan_energy, light_energy, days_available, expected_days } = data;
+
+  powerChart.data.labels = dates;
+  powerChart.data.datasets[0].data = fan_energy;
+  powerChart.data.datasets[1].data = light_energy;
+  powerChart.update();
+
+  if (days_available < expected_days) {
+    showEnergyWarning(
+      `提示：数据库中仅有 <strong>${days_available}</strong> 天的数据，不足 ${expected_days} 天。更多数据将在设备运行后自动累积。`
+    );
+  } else {
+    clearEnergyWarning();
+  }
+}
+
+function showEnergyWarning(msg) {
+  let el = document.getElementById('energy-warning');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'energy-warning';
+    el.className = 'mt-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400';
+    const chartContainer = document.getElementById('power-trend-chart')?.parentElement?.parentElement;
+    if (chartContainer) {
+      chartContainer.appendChild(el);
+    }
+  }
+  el.innerHTML = msg;
+}
+
+function clearEnergyWarning() {
+  const el = document.getElementById('energy-warning');
+  if (el) el.remove();
+}
+
+// 保留兼容旧调用的空函数
+function updatePowerData() {}
+function zeroPowerChart() {}
+function setPowerViewMode() {}

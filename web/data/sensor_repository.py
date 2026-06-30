@@ -203,6 +203,73 @@ def get_latest_records(n: int = 6):
         conn.close()
 
 
+def get_daily_energy_stats() -> dict:
+    """获取最近5天（昨天及前4天）的分类能耗统计
+    返回格式: {dates: [str], fan_energy: [float], light_energy: [float], days_available: int}
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = today - timedelta(days=5)  # 前5天
+        end_date = today  # 到今天（不含今天）
+
+        cursor.execute("""
+            SELECT DATE(CollectionTime) as day,
+                   FanPower, LightPower
+            FROM sensor_data
+            WHERE CollectionTime >= ? AND CollectionTime < ?
+              AND (FanPower > 0 OR LightPower > 0)
+            ORDER BY CollectionTime ASC
+        """, (start_date.strftime('%Y-%m-%d %H:%M:%S'),
+              end_date.strftime('%Y-%m-%d %H:%M:%S')))
+        rows = cursor.fetchall()
+
+        # 按日期分组，累加功率并计数
+        daily_data = {}
+        for row in rows:
+            day = row["day"]
+            if day not in daily_data:
+                daily_data[day] = {"fan_sum": 0.0, "light_sum": 0.0, "count": 0}
+            daily_data[day]["fan_sum"] += float(row["FanPower"] or 0)
+            daily_data[day]["light_sum"] += float(row["LightPower"] or 0)
+            daily_data[day]["count"] += 1
+
+        # 生成5天日期列表，按公式计算能耗 (Wh) = sum(power) / 12
+        dates = []
+        fan_energy = []
+        light_energy = []
+        days_available = 0
+
+        for i in range(5):
+            d = start_date + timedelta(days=i)
+            date_str = d.strftime('%m/%d')
+            dates.append(date_str)
+
+            day_key = d.strftime('%Y-%m-%d')
+            if day_key in daily_data:
+                data = daily_data[day_key]
+                # 每条数据代表5秒，能耗(Wh) = 功率(W) × 5/3600(h) = 功率 / 720
+                fan_wh = round(data["fan_sum"] / 720, 1)
+                light_wh = round(data["light_sum"] / 720, 1)
+                fan_energy.append(fan_wh)
+                light_energy.append(light_wh)
+                days_available += 1
+            else:
+                fan_energy.append(0)
+                light_energy.append(0)
+
+        return {
+            "dates": dates,
+            "fan_energy": fan_energy,
+            "light_energy": light_energy,
+            "days_available": days_available,
+            "expected_days": 5
+        }
+    finally:
+        conn.close()
+
+
 def clean_old_data():
     """清理过期数据（保留最近1个月）"""
     conn = get_db_connection()

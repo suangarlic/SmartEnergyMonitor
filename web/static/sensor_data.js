@@ -84,11 +84,7 @@ function updateSensorDisplay(data) {
         }
       }
     });
-
-    // 更新功率图表
-    updatePowerData(data.pwm_devices);
-    
-    // 更新PWM占空比图表（新增）
+    // 更新功率趋势图
     updatePwmData(data.pwm_devices);
   }
 

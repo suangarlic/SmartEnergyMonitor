@@ -11,8 +11,8 @@ env/
 .env/
 .venv/
 
-# Database files
-*.db
+*.png
+*.md
 
 # Log files
 *.log
@@ -38,9 +38,7 @@ Desktop.ini
 *.ipynb
 .ipynb_checkpoints/
 
-# Model files (large binary files)
-*.pkl
-*.pickle
+
 
 # CSV data files (if large)
 *.csv
