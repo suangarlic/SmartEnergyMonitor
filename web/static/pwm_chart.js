@@ -22,43 +22,26 @@ function initPwmChart() {
       maintainAspectRatio: false,
       interaction: {
         mode: 'index',
-        intersect: false,
-        touch: {
-          enabled: true,
-          mode: 'nearest',
-          axis: 'x'
-        }
+        intersect: false
       },
       scales: {
         x: {
           grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { 
-            color: 'rgba(255,255,255,0.6)',
-            maxRotation: 45,
-            minRotation: 45,
-            font: {
-              size: Math.max(8, Math.min(12, window.innerWidth / 40))
-            }
-          },
+          ticks: { color: 'rgba(255,255,255,0.6)' },
           title: {
-            display: window.innerWidth > 640,
+            display: true,
             text: '时间',
             color: 'rgba(255,255,255,0.8)'
           }
         },
         y: {
           grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { 
-            color: 'rgba(255,255,255,0.6)',
-            font: {
-              size: Math.max(8, Math.min(12, window.innerWidth / 40))
-            }
-          },
+          ticks: { color: 'rgba(255,255,255,0.6)' },
           beginAtZero: true,
           max: 30,
           min: 0,
           title: {
-            display: window.innerWidth > 640,
+            display: true,
             text: '功率 (W)',
             color: 'rgba(255,255,255,0.8)'
           }
@@ -66,32 +49,20 @@ function initPwmChart() {
       },
       plugins: {
         legend: { 
-          display: window.innerWidth > 640, 
+          display: true, 
           labels: { 
             color: '#e0e0e0',
             usePointStyle: true,
-            padding: 15,
-            font: {
-              size: Math.max(10, Math.min(12, window.innerWidth / 50))
-            }
+            padding: 20
           }
         },
         tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.9)',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
           titleColor: '#fff',
           bodyColor: '#fff',
-          padding: window.innerWidth > 640 ? 12 : 8,
-          displayColors: true,
-          titleFont: {
-            size: Math.max(10, Math.min(14, window.innerWidth / 40))
-          },
-          bodyFont: {
-            size: Math.max(10, Math.min(12, window.innerWidth / 50))
-          }
+          padding: 12,
+          displayColors: true
         }
-      },
-      animation: {
-        duration: window.innerWidth > 640 ? 300 : 150
       }
     }
   });
