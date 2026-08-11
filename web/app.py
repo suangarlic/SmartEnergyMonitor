@@ -58,6 +58,13 @@ else:
 # 存储连接的客户端
 connected_clients = set()
 
+
+# 命令更新锁，防止并发问题
+command_lock = threading.Lock()
+
+# 操作日志
+command_logs = []
+
 def update_command(fan_level, light_level):
     """更新命令并通过 WebSocket 推送"""
     global current_command
@@ -184,7 +191,7 @@ def set_command():
         
         fan_level = data.get('fan_level')
         light_level = data.get('light_level')
-        
+        client_ip = request.remote_addr
         # 验证参数范围
         if fan_level is not None and (not isinstance(fan_level, int) or not (0 <= fan_level <= 3)):
             print(f"[ERROR] /set_command: fan_level 参数错误: {fan_level}")
@@ -194,14 +201,35 @@ def set_command():
             print(f"[ERROR] /set_command: light_level 参数错误: {light_level}")
             return jsonify({"success": False, "msg": "light_level 必须在 0-3 之间"}), 400
         
-        # 更新命令
-        if fan_level is not None:
-            current_command["fan_level"] = fan_level
-        if light_level is not None:
-            current_command["light_level"] = light_level
+                
+        # 使用锁保护命令更新，防止并发问题
+        with command_lock:
+            # 记录旧值用于日志
+            old_fan = current_command["fan_level"]
+            old_light = current_command["light_level"]
+            
+            # 更新命令
+            if fan_level is not None:
+                current_command["fan_level"] = fan_level
+            if light_level is not None:
+                current_command["light_level"] = light_level
+            
+            # 记录操作日志（保留最近100条）
+            log_entry = {
+                "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "client_ip": client_ip,
+                "old_fan": old_fan,
+                "new_fan": current_command["fan_level"],
+                "old_light": old_light,
+                "new_light": current_command["light_level"]
+            }
+            command_logs.append(log_entry)
+            if len(command_logs) > 100:
+                command_logs.pop(0)
         
-        print(f"[INFO] command updated: fan={current_command['fan_level']}, light={current_command['light_level']}")
-        return jsonify({"success": True, "msg": "[INFO] command updated"})
+        print(f"[INFO] command updated from {client_ip}: fan={current_command['fan_level']}, light={current_command['light_level']}")
+        return jsonify({"success": True, "msg": f"[INFO] command updated from {client_ip}"})
+    
     except Exception as e:
         print(f"[ERROR] /set_command: {str(e)}")
         return jsonify({"success": False, "msg": f"命令设置失败: {str(e)}"}), 500
