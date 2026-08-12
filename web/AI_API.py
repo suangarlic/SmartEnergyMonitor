@@ -43,7 +43,7 @@ SIMULATED_EXPLANATIONS = [
 class AIAnalyzer:
     def __init__(self):
         # 从环境变量读取配置
-        self.api_url = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
+        self.api_url = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/v1/chat/completions")
         self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
         self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
         # 是否启用模拟模式（无API时自动启用）
