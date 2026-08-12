@@ -268,26 +268,6 @@ def get_daily_energy_stats() -> dict:
         }
     finally:
         conn.close()
-
-
-def clean_old_data():
-    """清理过期数据（保留最近1个月）"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        one_month_ago = datetime.now() - timedelta(days=30)
-        one_month_ago_str = one_month_ago.strftime('%Y-%m-%d %H:%M:%S')
-        cursor.execute("DELETE FROM sensor_data WHERE CollectionTime < ?", (one_month_ago_str,))
-        deleted_count = cursor.rowcount
-        conn.commit()
-        print(f"清理了 {deleted_count} 条过期数据")
-        return True
-    except Exception as e:
-        print(f"清理过期数据失败: {e}")
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
  
 def init_database():
     """初始化数据库（创建表）"""
