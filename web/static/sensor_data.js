@@ -71,7 +71,7 @@ function updateSensorDisplay(data) {
       if (device.name.includes('小灯')) {
         document.getElementById('device-light-power').textContent = `${device.power}W`;
         
-        document.getElementById('current-duty').textContent = `${device.duty_cycle}%`;
+        document.getElementById('current-duty').textContent = `${device.power}W`;
         const level = Number(device.level);
         if (!Number.isNaN(level)) {
           window.deviceControl?.syncDeviceLevel?.('light', level);

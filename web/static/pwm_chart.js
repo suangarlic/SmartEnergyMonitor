@@ -56,7 +56,7 @@ function initPwmChart() {
             }
           },
           beginAtZero: true,
-          max: 30,
+          max: 50,
           min: 0,
           title: {
             display: window.innerWidth > 640,
