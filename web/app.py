@@ -74,20 +74,10 @@ def update_command(fan_level, light_level):
     socketio.emit('command_update', current_command)
     print(f"[WebSocket] 推送命令: fan={fan_level}, light={light_level}")
 
-def scheduled_cleanup():
-    from data.sensor_repository import clean_old_data
-    while True:
-        time.sleep(3600)
-        clean_old_data()
-
 def init_app():
     from data.sensor_repository import create_tables
     create_tables()
     print("数据库表结构初始化完成")
-    
-    cleanup_thread = threading.Thread(target=scheduled_cleanup, daemon=True)
-    cleanup_thread.start()
-    print("定时清理任务已启动")
 
     # 启动行为分析轮询（每 30s 从数据库取最近 6 条分析）
     from services.behavior_service import BehaviorAnalysisService
